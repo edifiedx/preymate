@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1]
+### 2026-03-09
+### Fixed
+- Release workflow now tags the correct commit (includes .toc version update)
+
 ## [0.3.0]
 ### 2026-03-09
 ### Added

@@ -106,6 +106,12 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
       
+      - name: Pull latest
+        run: |
+          git fetch origin main
+          git checkout main
+          git pull origin main
+
       - name: Create tag
         run: |
           git tag -a "v${{ needs.process-version.outputs.version }}" -m "Version ${{ needs.process-version.outputs.version }}"

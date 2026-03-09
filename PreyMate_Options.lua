@@ -165,8 +165,8 @@ function PM:InitSettings()
 
     -- Register with settings
     local category = Settings.RegisterCanvasLayoutCategory(panel, PM.ADDON_NAME)
-    category.ID = PM.ADDON_NAME
     Settings.RegisterAddOnCategory(category)
+    PM.settingsCategory = category
 end
 
 

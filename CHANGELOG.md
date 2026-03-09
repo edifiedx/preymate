@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4]
+### 2026-03-09
+### Fixed
+- `/pm` slash command now correctly opens the settings panel
+### Removed
+- Non-functional CurseForge description update step from release workflow
+
 ## [0.3.3]
 ### 2026-03-09
 ### Added

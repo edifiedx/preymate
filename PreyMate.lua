@@ -158,7 +158,9 @@ SlashCmdList["PREYMATE"] = function(msg)
     msg = (msg or ""):lower():match("^%s*(.-)%s*$")
     if msg == "track" then
         FindAndTrackPreyWorldQuest()
+    elseif PM.settingsCategory then
+        Settings.OpenToCategory(PM.settingsCategory.ID)
     else
-        Settings.OpenToCategory(PM.ADDON_NAME)
+        print(PM.PREFIX, "Settings not initialized yet")
     end
 end

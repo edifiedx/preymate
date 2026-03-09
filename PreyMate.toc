@@ -1,0 +1,7 @@
+## Interface: 120000
+## Title: |cff8b0000Prey|rMate
+## Notes: Automatically tracks the Prey world quests and retracks the Prey hunt quest when your target has been revealed.
+## Version: 0.1.0
+## SavedVariables: PreyMateDB
+
+PreyMate.lua

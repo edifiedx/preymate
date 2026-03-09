@@ -3,6 +3,9 @@
 ---------------------------------------------------------------------
 PreyMate = {}
 local PM = PreyMate
+local PREY_NORMAL = 1
+local PREY_HARD = 2
+local PREY_NIGHTMARE = 3
 
 PM.ADDON_NAME = "PreyMate"
 PM.PREFIX = "[|cffcc3333Prey|rMate]"
@@ -10,7 +13,8 @@ PM.PREFIX = "[|cffcc3333Prey|rMate]"
 PM.PROFILE_DEFAULTS = {
     debug = false,
     autoAccept = false,
-    preyLevel = 1, -- 1=Normal, 2=Hard, 3=Nightmare
+    autoPayFee = false,
+    preyLevel = PREY_NORMAL,
 }
 
 local DEBUG = false

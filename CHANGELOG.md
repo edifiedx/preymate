@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1]
+### 2026-03-09
+### Fixed
+- Corrected game version tag from 12.0.0 to 12.0.1
+- Added CurseForge project ID to packaging metadata
+
 ## [0.2.0]
 ### 2026-03-09
 ### Added

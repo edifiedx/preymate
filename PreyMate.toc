@@ -1,4 +1,4 @@
-## Interface: 120000
+## Interface: 120001
 ## Title: |cffcc3333Prey|rMate
 ## IconTexture: 7493985
 ## Notes: Automatically tracks the Prey world quests and retracks the Prey hunt quest when your target has been revealed.

@@ -7,3 +7,4 @@ ignore:
   - .git
   - .github
   - deploy.ps1
+  - "*.jpg"

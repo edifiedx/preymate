@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0]
+### 2026-03-09
+### Added
+- Auto-pay hunt fee option (confirms gossip cost automatically during auto-accept flow)
+- Debug logging for gossip confirm events and difficulty selection details
+
+### Changed
+- Reordered settings: Auto-accept, Prey Level, Auto-pay, Debug
+- Debug logging label styled grey to reduce visual prominence
+
 ## [0.2.1]
 ### 2026-03-09
 ### Fixed

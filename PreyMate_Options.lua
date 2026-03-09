@@ -146,6 +146,14 @@ function PM:InitSettings()
     PM.levelDropdown = levelDropdown
     yOff = yOff - 36
 
+    -- Auto-pay fee checkbox
+    local autoPayCB = CreateCheckbox(panel, "Auto-pay hunt fee", profile.autoPayFee, function(self, checked)
+        local p = PM:GetProfile()
+        p.autoPayFee = checked
+    end)
+    autoPayCB:SetPoint("TOPLEFT", 14, yOff)
+    yOff = yOff - 28
+
     -- Debug checkbox
     local debugCB = CreateCheckbox(panel, "Enable debug logging", profile.debug, function(self, checked)
         local p = PM:GetProfile()
@@ -153,6 +161,7 @@ function PM:InitSettings()
         PM:ApplyProfile()
     end)
     debugCB:SetPoint("TOPLEFT", 14, yOff)
+    debugCB.Text:SetTextColor(0.5, 0.5, 0.5)
 
     -- Register with settings
     local category = Settings.RegisterCanvasLayoutCategory(panel, PM.ADDON_NAME)

@@ -13,6 +13,7 @@ end
 
 local pendingDifficulty = false
 local pendingFallback = nil
+local pendingPayFee = false
 
 ---------------------------------------------------------------------
 -- Difficulty Unavailable Popup
@@ -27,6 +28,7 @@ StaticPopupDialogs["PREYMATE_DIFFICULTY_UNAVAILABLE"] = {
         profile.preyLevel = pendingFallback.fallbackIndex
         log("Updated difficulty to", pendingFallback.fallbackName)
         if PM.levelDropdown then PM.levelDropdown.Refresh() end
+        pendingPayFee = PM:GetProfile().autoPayFee
         C_GossipInfo.SelectOption(pendingFallback.opt.gossipOptionID)
         pendingFallback = nil
     end,
@@ -40,8 +42,31 @@ StaticPopupDialogs["PREYMATE_DIFFICULTY_UNAVAILABLE"] = {
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("GOSSIP_SHOW")
+frame:RegisterEvent("GOSSIP_CONFIRM")
 
-frame:SetScript("OnEvent", function(self, event)
+frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
+    -- Auto-pay fee confirmation
+    if event == "GOSSIP_CONFIRM" then
+        if PM.debug then
+            print(PM.PREFIX, "--- GOSSIP_CONFIRM ---")
+            print(PM.PREFIX, "optionID:", tostring(arg1), "| text:", tostring(arg2), "| cost:", tostring(arg3))
+            print(PM.PREFIX, "--- End GOSSIP_CONFIRM ---")
+        end
+        if pendingPayFee then
+            local confirmText = tostring(arg2 or "")
+            if confirmText:lower():find("hunt") then
+                pendingPayFee = false
+                log("Auto-paying hunt fee")
+                C_GossipInfo.SelectOption(arg1, "", true)
+                StaticPopup_Hide("GOSSIP_CONFIRM")
+            else
+                pendingPayFee = false
+                log("GOSSIP_CONFIRM text did not match hunt confirmation, skipping:", confirmText)
+            end
+        end
+        return
+    end
+
     local npcName = UnitName("npc")
     if not npcName then return end
 
@@ -106,8 +131,13 @@ frame:SetScript("OnEvent", function(self, event)
 
         -- Exact match — use it
         if availableByName[desiredLevel] then
-            log("Auto-selecting difficulty:", desiredLevel)
-            C_GossipInfo.SelectOption(availableByName[desiredLevel].gossipOptionID)
+            local selected = availableByName[desiredLevel]
+            log("Auto-selecting difficulty:", desiredLevel,
+                "| gossipOptionID=" .. tostring(selected.gossipOptionID),
+                "| icon=" .. tostring(selected.icon),
+                "| orderIndex=" .. tostring(selected.orderIndex))
+            pendingPayFee = profile.autoPayFee
+            C_GossipInfo.SelectOption(selected.gossipOptionID)
             return
         end
 

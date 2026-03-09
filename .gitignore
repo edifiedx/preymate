@@ -1,0 +1,21 @@
+# Compiled Lua sources
+luac.out
+
+# VS Code
+.vscode/*
+
+# luarocks build files
+*.src.rock
+*.zip
+*.tar.gz
+
+# Object files
+*.o
+*.os
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch

@@ -1,0 +1,9 @@
+package-as: PreyMate
+enable-nolib-creation: no
+
+ignore:
+  - README.md
+  - .gitignore
+  - .git
+  - .github
+  - deploy.ps1

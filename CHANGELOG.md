@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.2]
+### 2026-03-09
+### Fixed
+- Removed invalid key from .pkgmeta causing CurseForge packaging errors
+
 ## [0.3.1]
 ### 2026-03-09
 ### Fixed

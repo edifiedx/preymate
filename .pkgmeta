@@ -1,5 +1,4 @@
 package-as: PreyMate
-curseforge-id: 1481436
 enable-nolib-creation: no
 
 ignore:

@@ -134,3 +134,17 @@ jobs:
           body: "${{ steps.changelog.outputs.CHANGELOG_ENTRY }}"
           draft: false
           prerelease: false
+
+      - name: Update CurseForge description
+        if: ${{ vars.CF_PROJECT_ID != '' }}
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
+        run: |
+          DESCRIPTION=$(cat README.md)
+          curl -s -X PATCH \
+            "https://wow.curseforge.com/api/projects/${CF_PROJECT_ID}/description" \
+            -H "X-Api-Token: ${CF_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg desc "$DESCRIPTION" '{description: $desc}')" \
+            || echo "CurseForge description update failed (non-fatal)"

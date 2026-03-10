@@ -125,6 +125,12 @@ function PM:InitSettings()
         p.autoAccept = checked
     end)
     autoAcceptCB:SetPoint("TOPLEFT", 14, yOff)
+
+    -- Shift-click tip
+    local shiftTip = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    shiftTip:SetPoint("LEFT", autoAcceptCB.Text, "RIGHT", 6, 0)
+    shiftTip:SetText("|cff888888(hold Shift to bypass)|r")
+
     yOff = yOff - 28
 
     -- Prey level dropdown
@@ -152,7 +158,15 @@ function PM:InitSettings()
         p.autoPayFee = checked
     end)
     autoPayCB:SetPoint("TOPLEFT", 14, yOff)
-    yOff = yOff - 28
+    yOff = yOff - 32
+
+    -- Separator
+    local hr = panel:CreateTexture(nil, "ARTWORK")
+    hr:SetPoint("TOPLEFT", 16, yOff)
+    hr:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
+    hr:SetHeight(1)
+    hr:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    yOff = yOff - 12
 
     -- Debug checkbox
     local debugCB = CreateCheckbox(panel, "Enable debug logging", profile.debug, function(self, checked)

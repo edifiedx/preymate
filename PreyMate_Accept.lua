@@ -117,6 +117,10 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
     local profile = PM:GetProfile()
     if not profile.autoAccept then return end
     if npcName ~= NPC_NAME then return end
+    if IsShiftKeyDown() then
+        log("Shift held — skipping auto-accept")
+        return
+    end
 
     -- Page 2: select difficulty (if we just clicked the hunt option)
     if pendingDifficulty then

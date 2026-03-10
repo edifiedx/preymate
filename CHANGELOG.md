@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0]
+### 2026-03-09
+### Added
+- Hold Shift when clicking Astalor to bypass auto-accept
+- Shift-click hint text next to auto-accept checkbox in settings
+- Visual separator between main settings and debug option
+
 ## [0.3.4]
 ### 2026-03-09
 ### Fixed

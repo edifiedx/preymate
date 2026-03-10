@@ -51,6 +51,11 @@ local preyWorldQuestIDs = {
     91590, 91602, 91207, 91604, 91523, 91591,
 }
 
+-- The hunt quest the player is currently on, or nil if none.
+-- Set on QUEST_ACCEPTED (or restored at login via GetActivePreyQuest),
+-- cleared when the target is revealed (2nd objective unlocked).
+PM.activeHuntQuestID = nil
+
 local function FindAndTrackPreyWorldQuest(retryCount)
     retryCount = retryCount or 0
     log("Searching for active Prey world quest..." .. (retryCount > 0 and (" (retry " .. retryCount .. ")") or ""))
@@ -101,6 +106,7 @@ local frame = CreateFrame("Frame")
 frame:RegisterEvent("QUEST_ACCEPTED")
 frame:RegisterEvent("QUEST_LOG_UPDATE")
 frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 frame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == PM.ADDON_NAME then
@@ -117,35 +123,51 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             end
         end
 
+        -- Restore activeHuntQuestID if the player logged in mid-hunt.
+        -- This is deferred to PLAYER_ENTERING_WORLD (see below) because
+        -- quest data is not available yet at ADDON_LOADED time.
+
         PM:ApplyProfile()
         PM:InitSettings()
         self:UnregisterEvent("ADDON_LOADED")
         log("Loaded! Use /pm track to manually find and track")
 
-    elseif event == "QUEST_ACCEPTED" then
-        local questIDs = C_QuestLine.GetQuestLineQuests(5945)
-        if questIDs then
-            for _, id in ipairs(questIDs) do
-                if id == arg1 then
-                    log("Hunt quest accepted! Finding world quest...")
-                    C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
-                    return
-                end
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Quest data is now available. Restore tracking if we're mid-hunt.
+        local resumeID = C_QuestLog.GetActivePreyQuest()
+        log("Login/reload recovery: GetActivePreyQuest() =", tostring(resumeID))
+        if resumeID then
+            PM.activeHuntQuestID = resumeID
+            local numObj = C_QuestLog.GetNumQuestObjectives(resumeID)
+            log("Hunt quest objectives:", tostring(numObj))
+            if numObj == 2 then
+                -- Target already revealed — super-track the hunt quest directly
+                log("Target already revealed, super-tracking hunt quest")
+                C_SuperTrack.SetSuperTrackedQuestID(resumeID)
+            else
+                -- Target not yet revealed — find and super-track the world quest
+                log("Target not yet revealed, finding world quest...")
+                C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
             end
+        end
+        self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+
+    elseif event == "QUEST_ACCEPTED" then
+        if C_QuestLog.GetActivePreyQuest() == arg1 then
+            PM.activeHuntQuestID = arg1
+            log("Hunt quest accepted! Finding world quest...")
+            C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
         end
 
     elseif event == "QUEST_LOG_UPDATE" then
-        local questIDs = C_QuestLine.GetQuestLineQuests(5945)
-        if questIDs then
-            for _, qID in ipairs(questIDs) do
-                if C_QuestLog.IsOnQuest(qID) then
-                    if C_QuestLog.GetNumQuestObjectives(qID) == 2 then
-                        log("Target revealed! Tracking hunt quest")
-                        C_SuperTrack.SetSuperTrackedQuestID(qID)
-                        return
-                    end
-                end
-            end
+        -- Fast exit: only process when we know we're on a hunt quest
+        local qID = PM.activeHuntQuestID
+        if not qID then return end
+
+        if C_QuestLog.GetNumQuestObjectives(qID) == 2 then
+            log("Target revealed! Tracking hunt quest")
+            C_SuperTrack.SetSuperTrackedQuestID(qID)
+            PM.activeHuntQuestID = nil  -- stop processing until the next hunt
         end
     end
 end)

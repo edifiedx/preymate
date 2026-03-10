@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0]
+### 2026-03-10
+### Changed
+- Hunt tracking now uses `C_QuestLog.GetActivePreyQuest()` instead of a hardcoded quest ID list, making detection more robust and future-proof
+- `QUEST_LOG_UPDATE` handler optimized to exit immediately when no hunt is active, eliminating unnecessary work on every quest log event
+### Fixed
+- Tracking now correctly resumes on login or reload if a hunt quest is already active — handles both pre-reveal and post-reveal states
+
 ## [0.4.0]
 ### 2026-03-09
 ### Added

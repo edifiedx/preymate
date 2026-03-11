@@ -187,14 +187,8 @@ function PM:InitSettings()
         function(val) PM:GetProfile().autoAcceptMode = val end
     )
     acceptModeDropdown:SetPoint("TOPLEFT", 210, yOff)
+    PM.acceptModeDropdown = acceptModeDropdown
     yOff = yOff - 36
-
-    local hrAcceptBottom = panel:CreateTexture(nil, "ARTWORK")
-    hrAcceptBottom:SetPoint("TOPLEFT", 16, yOff)
-    hrAcceptBottom:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
-    hrAcceptBottom:SetHeight(1)
-    hrAcceptBottom:SetColorTexture(0.4, 0.4, 0.4, 0.6)
-    yOff = yOff - 16
 
     -- Auto-pay fee checkbox
     local autoPayCB = CreateCheckbox(panel, "Auto-pay hunt fee", profile.autoPayFee, function(self, checked)
@@ -209,6 +203,13 @@ function PM:InitSettings()
     end)
     autoPayCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
     yOff = yOff - 32
+
+    local hrAcceptBottom = panel:CreateTexture(nil, "ARTWORK")
+    hrAcceptBottom:SetPoint("TOPLEFT", 16, yOff)
+    hrAcceptBottom:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
+    hrAcceptBottom:SetHeight(1)
+    hrAcceptBottom:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    yOff = yOff - 16
 
     -- Auto-complete checkbox
     local autoCompleteCB = CreateCheckbox(panel, "Auto-complete hunt quest", profile.autoComplete, function(self, checked)
@@ -243,7 +244,24 @@ function PM:InitSettings()
         function(val) PM:GetProfile().autoCollectReward = val end
     )
     rewardDropdown:SetPoint("LEFT", autoCollectCB.Text, "RIGHT", -8, -2)
+    PM.rewardDropdown = rewardDropdown
     yOff = yOff - 36
+
+    -- Show minimap icon checkbox
+    local minimapCB = CreateCheckbox(panel, "Show minimap icon", profile.showMinimapIcon, function(self, checked)
+        local p = PM:GetProfile()
+        p.showMinimapIcon = checked
+        PM:UpdateMinimapIcon()
+    end)
+    minimapCB:SetPoint("TOPLEFT", 14, yOff)
+    minimapCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Toggles the PreyMate minimap button.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    minimapCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    PM.minimapCB = minimapCB
+    yOff = yOff - 32
 
     -- Separator
     local hr = panel:CreateTexture(nil, "ARTWORK")

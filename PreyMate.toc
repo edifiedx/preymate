@@ -5,6 +5,12 @@
 ## Version: 0.7.0
 ## SavedVariables: PreyMateDB
 
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\lib.xml
+
 PreyMate.lua
 PreyMate_Accept.lua
+PreyMate_Minimap.lua
 PreyMate_Options.lua

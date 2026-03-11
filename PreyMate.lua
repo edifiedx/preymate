@@ -29,6 +29,7 @@ PM.PROFILE_DEFAULTS = {
     autoComplete = false,        -- open reward frame and complete the quest automatically
     autoCollect = false,         -- automatically pick a reward if choices are presented
     autoCollectReward = REWARD_GOLD,
+    showMinimapIcon = true,
 }
 
 local DEBUG = false
@@ -224,11 +225,15 @@ end)
 ---------------------------------------------------------------------
 -- Slash Commands
 ---------------------------------------------------------------------
+function PM:Track()
+    FindAndTrackPreyWorldQuest()
+end
+
 SLASH_PREYMATE1 = "/pm"
 SlashCmdList["PREYMATE"] = function(msg)
     msg = (msg or ""):lower():match("^%s*(.-)%s*$")
     if msg == "track" then
-        FindAndTrackPreyWorldQuest()
+        PM:Track()
     elseif PM.settingsCategory then
         Settings.OpenToCategory(PM.settingsCategory.ID)
     else

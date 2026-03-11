@@ -46,7 +46,7 @@ Open questions are marked **[?]**. Items are loosely ordered by dependency.
 
 ### Minimap Button
 
-**Library decision: native** — zero dependencies, fully self-contained. Position angle saved to `PreyMateDB.minimapAngle`. Draggable by default.
+**Library decision: LibDBIcon-1.0** — handles square minimap shapes (`GetMinimapShape()`), circular edge-clamping, drag, and position persistence automatically. Same stack used by MDT, DBM, and most serious addons. Embed LibStub + LibDataBroker-1.1 + LibDBIcon-1.0 in a `Libs/` folder (~10KB total, no external runtime deps).
 
 **Interactions:**
 - **Left click** → manual track (same as `/pm track`)
@@ -63,8 +63,10 @@ Open questions are marked **[?]**. Items are loosely ordered by dependency.
 **Implementation notes:**
 - Use `GameTooltip` with `:SetOwner(button, "ANCHOR_LEFT")` for hover display
 - Right-click menu via `EasyMenu` / `UIDropDownMenu` (same pattern as existing dropdown in Options)
-- Angle persistence: save/load `PreyMateDB.minimapAngle`, default to 45°
+- Angle persistence: handled by LibDBIcon via its DB key passed at registration; no manual angle math
 - New file: `PreyMate_Minimap.lua` (added to `.toc` after Options)
+- `.toc` additions: `Libs\LibStub\LibStub.lua`, `Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua`, `Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua` (loaded before Minimap file)
+- `.pkgmeta` `externals:` block to pull the three libs from their WoWAce repos at package time
 
 ---
 
@@ -195,15 +197,16 @@ Run these in the console to verify availability and return values:
 
 ## Minimap Button
 
-**Library decision: native vs. LibDBIcon**
-- **LibDBIcon-1.0** (the popular one): requires LibStub + a DataBroker object. Gives free position
-  memory, draggable around the minimap edge, automatic conflict-avoidance with other buttons.
-  Means bundling two libraries (~10KB) and wiring up DataBroker callbacks.
-- **Native** (`CreateFrame("Button", nil, Minimap)`): zero dependencies, fully self-contained,
-  manually handle dragging + angle persistence in `PreyMateDB`. A bit more code but nothing complex.
-- **Recommendation:** Native. PreyMate has no other library dependencies and the native approach
-  is well-understood. Position angle saved to `PreyMateDB.minimapAngle`. Draggable by default.
-  Can always wrap in LibDBIcon later if users request it.
+**Library decision: LibDBIcon-1.0** (settled)
+
+The critical flaw with hand-rolling is `GetMinimapShape()` — square minimaps (Dominos, ElvUI square mode, etc.) change the bounding geometry. A naive circular-angle approach produces a button that only orbits in a fixed circle, clipping outside the minimap edge or floating in the wrong position entirely. Confirmed bad experience in the wild.
+
+LibDBIcon-1.0 calls `GetMinimapShape()` internally and switches between circular and square edge-clamping transparently. MDT, DBM, Dominos, and most serious addons use it for exactly this reason.
+
+Stack to embed in a `Libs/` folder (~10KB total, no external runtime deps):
+- **LibStub** — tiny version-registry shim
+- **LibDataBroker-1.1** — data-feed interface
+- **LibDBIcon-1.0** — minimap button, drag, shape detection, position persistence
 
 **Interactions:**
 - **Left click** → manual track (same as `/pm track`)
@@ -221,8 +224,10 @@ Run these in the console to verify availability and return values:
 **Implementation notes:**
 - Use `GameTooltip` with `:SetOwner(button, "ANCHOR_LEFT")` for hover display
 - Right-click menu via `EasyMenu` / `UIDropDownMenu` (same pattern as existing dropdown in Options)
-- Angle persistence: save/load `PreyMateDB.minimapAngle`, default to 45°
+- Angle persistence: handled by LibDBIcon via its DB key passed at registration; no manual math
 - New file: `PreyMate_Minimap.lua` (added to `.toc` after Options)
+- `.toc` additions: `Libs\LibStub\LibStub.lua`, `Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua`, `Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua`
+- `.pkgmeta` `externals:` block to pull the three libs from their WoWAce repos at package time
 
 ---
 

@@ -61,7 +61,11 @@ foreach ($file in $requiredFiles) {
             }
         }
 
-        Copy-Item $sourcePath $destPath -Force
+        $destDir = Split-Path $destPath -Parent
+        if (-not (Test-Path $destDir)) {
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+        }
+        Copy-Item $sourcePath $destPath -Force -ErrorAction Stop
         Write-Host ($format -f $file, "COPIED", "Updated") -ForegroundColor Green
         $copied++
     }

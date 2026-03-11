@@ -50,6 +50,7 @@ Never create a second global. Attach shared state (functions, flags, references)
 
 - Use `local` for everything except the one global `PreyMate = {}`
 - Module-level constants at the top of each file (e.g., `local NPC_NAME = "Astalor Bloodsworn"`)
+- **No magic numbers** — every numeric literal with non-obvious meaning must be a named `local` constant at the top of the file; this includes delays, IDs, indices, and thresholds
 - Debug logging via a local `log(...)` function that checks `PM.debug` or a local `DEBUG` flag
 - Debug log output uses `PM.PREFIX` (`[PreyMate]` with colored text) as the first argument to `print()`
 - Use WoW color escapes for UI text: `|cffRRGGBB...|r`

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0]
+### 2026-03-10
+### Added
+- Auto-complete hunt quest: automatically opens the reward frame when the hunt is complete
+- Auto-collect reward: automatically selects your preferred reward (Gold, Marl, Dawncrest, or Anguish) after completing the quest
+- Auto-complete and auto-collect settings added to the options panel
+- Login/reload recovery now triggers auto-complete and auto-collect if the hunt was already finished before the reload
+
 ## [0.5.0]
 ### 2026-03-10
 ### Changed

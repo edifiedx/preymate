@@ -3,9 +3,16 @@
 ---------------------------------------------------------------------
 PreyMate = {}
 local PM = PreyMate
-local PREY_NORMAL = 1
-local PREY_HARD = 2
+local PREY_NORMAL    = 1
+local PREY_HARD      = 2
 local PREY_NIGHTMARE = 3
+
+local REWARD_GOLD      = 1
+local REWARD_MARL      = 2
+local REWARD_DAWNCREST = 3
+local REWARD_ANGUISH   = 4
+
+local AUTOCOLLECT_DELAY = 0.5  -- seconds to wait after ShowQuestComplete before calling GetQuestReward
 
 PM.ADDON_NAME = "PreyMate"
 PM.PREFIX = "[|cffcc3333Prey|rMate]"
@@ -15,6 +22,9 @@ PM.PROFILE_DEFAULTS = {
     autoAccept = false,
     autoPayFee = false,
     preyLevel = PREY_NORMAL,
+    autoComplete = false,        -- open reward frame and complete the quest automatically
+    autoCollect = false,         -- automatically pick a reward if choices are presented
+    autoCollectReward = REWARD_GOLD,
 }
 
 local DEBUG = false
@@ -105,6 +115,7 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("QUEST_ACCEPTED")
 frame:RegisterEvent("QUEST_LOG_UPDATE")
+frame:RegisterEvent("QUEST_REMOVED")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
@@ -140,12 +151,25 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             PM.activeHuntQuestID = resumeID
             local numObj = C_QuestLog.GetNumQuestObjectives(resumeID)
             log("Hunt quest objectives:", tostring(numObj))
-            if numObj == 2 then
-                -- Target already revealed — super-track the hunt quest directly
+            if C_QuestLog.IsComplete(resumeID) then
+                log("Hunt already complete at login/reload")
+                local profile = PM:GetProfile()
+                if profile.autoComplete then
+                    log("Auto-completing quest on recovery")
+                    PM.activeHuntQuestID = nil
+                    ShowQuestComplete(resumeID)
+                    if profile.autoCollect then
+                        C_Timer.After(AUTOCOLLECT_DELAY, function()
+                            local choices = GetNumQuestChoices()
+                            log("Auto-collecting reward, choices=", choices, "index=", profile.autoCollectReward)
+                            GetQuestReward(choices > 1 and profile.autoCollectReward or 0)
+                        end)
+                    end
+                end
+            elseif numObj == 2 then
                 log("Target already revealed, super-tracking hunt quest")
                 C_SuperTrack.SetSuperTrackedQuestID(resumeID)
             else
-                -- Target not yet revealed — find and super-track the world quest
                 log("Target not yet revealed, finding world quest...")
                 C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
             end
@@ -159,15 +183,36 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
         end
 
+    elseif event == "QUEST_REMOVED" then
+        if arg1 == PM.activeHuntQuestID then
+            log("Hunt quest removed, clearing tracking")
+            PM.activeHuntQuestID = nil
+        end
+
     elseif event == "QUEST_LOG_UPDATE" then
         -- Fast exit: only process when we know we're on a hunt quest
         local qID = PM.activeHuntQuestID
         if not qID then return end
 
-        if C_QuestLog.GetNumQuestObjectives(qID) == 2 then
+        local profile = PM:GetProfile()
+
+        if C_QuestLog.IsComplete(qID) then
+            log("Hunt quest complete")
+            if profile.autoComplete then
+                log("Auto-completing quest")
+                PM.activeHuntQuestID = nil
+                ShowQuestComplete(qID)
+                if profile.autoCollect then
+                    C_Timer.After(AUTOCOLLECT_DELAY, function()
+                        local choices = GetNumQuestChoices()
+                        log("Auto-collecting reward, choices=", choices, "index=", profile.autoCollectReward)
+                        GetQuestReward(choices > 1 and profile.autoCollectReward or 0)
+                    end)
+                end
+            end
+        elseif C_QuestLog.GetNumQuestObjectives(qID) == 2 then
             log("Target revealed! Tracking hunt quest")
             C_SuperTrack.SetSuperTrackedQuestID(qID)
-            PM.activeHuntQuestID = nil  -- stop processing until the next hunt
         end
     end
 end)

@@ -2,6 +2,12 @@
 local PM = PreyMate
 
 local PREY_LEVELS = { "Normal", "Hard", "Nightmare" }
+local REWARD_OPTIONS = {
+    { text = "Gold",       value = 1 },
+    { text = "Marl",       value = 2 },
+    { text = "Dawncrest",  value = 3 },
+    { text = "Anguish",    value = 4 },
+}
 
 ---------------------------------------------------------------------
 -- UI Helpers
@@ -159,6 +165,29 @@ function PM:InitSettings()
     end)
     autoPayCB:SetPoint("TOPLEFT", 14, yOff)
     yOff = yOff - 32
+
+    -- Auto-complete checkbox
+    local autoCompleteCB = CreateCheckbox(panel, "Auto-complete hunt quest", profile.autoComplete, function(self, checked)
+        local p = PM:GetProfile()
+        p.autoComplete = checked
+    end)
+    autoCompleteCB:SetPoint("TOPLEFT", 14, yOff)
+    yOff = yOff - 28
+
+    -- Auto-collect checkbox + reward dropdown (indented, sub-option of auto-complete)
+    local autoCollectCB = CreateCheckbox(panel, "Auto-collect reward:", profile.autoCollect, function(self, checked)
+        local p = PM:GetProfile()
+        p.autoCollect = checked
+    end)
+    autoCollectCB:SetPoint("TOPLEFT", 30, yOff)
+
+    local rewardDropdown = CreateDropdown(panel, "PreyMateRewardDropdown", 110,
+        REWARD_OPTIONS,
+        function() return PM:GetProfile().autoCollectReward end,
+        function(val) PM:GetProfile().autoCollectReward = val end
+    )
+    rewardDropdown:SetPoint("LEFT", autoCollectCB.Text, "RIGHT", -8, -2)
+    yOff = yOff - 36
 
     -- Separator
     local hr = panel:CreateTexture(nil, "ARTWORK")

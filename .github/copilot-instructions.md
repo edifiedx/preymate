@@ -87,16 +87,16 @@ Never create a second global. Attach shared state (functions, flags, references)
 
 ### How Releases Work
 
-1. Add a new `## [x.y.z]` section at the top of `CHANGELOG.md`
-2. Commit and push to `main`
-3. The workflow detects the new version, updates `.toc` Version field, creates an annotated tag and GitHub release
-4. CurseForge webhook (`Releases` event type) picks up the release automatically
+1. Add a new `## [x.y.z] - YYYY-MM-DD` section at the top of `CHANGELOG.md` (below `## [Unreleased]`)
+2. Commit locally, then `git pull --rebase` before pushing — CI commits a .toc update after each release, so the remote is often ahead
+3. Push to `main`
+4. The workflow detects the new version, updates `.toc` Version field, creates an annotated tag and GitHub release
+5. CurseForge webhook (`Releases` event type) picks up the release automatically
 
 ### CHANGELOG Format
 
 ```markdown
-## [x.y.z]
-### YYYY-MM-DD
+## [x.y.z] - YYYY-MM-DD
 ### Added/Changed/Fixed/Removed
 - Description of change
 ```
@@ -106,7 +106,8 @@ Never create a second global. Attach shared state (functions, flags, references)
 - **Do NOT manually edit the `## Version:` line in the .toc** — the workflow handles this
 - The workflow has 3 jobs: `process-version` → `update-files` → `create-release`
 - `create-release` does a `git pull` before tagging to ensure it includes the .toc update commit
-- Releases created by `GITHUB_TOKEN` do NOT trigger GitHub webhooks (known GitHub limitation). CurseForge webhook fires because it's configured on the "Releases" event type, not "push".
+- Releases created by `GITHUB_TOKEN` do NOT trigger GitHub webhooks (known GitHub limitation).
+- CurseForge webhook is configured on **"Branch or tag creation"** (not "Releases") — the tag push fires exactly once, avoiding duplicate CurseForge builds. Branch creation events will also fire the webhook; any spurious branch builds should be manually deleted on CurseForge.
 - Git user for CI commits: `github-actions[bot]` with noreply email
 
 ### CurseForge

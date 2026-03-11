@@ -63,28 +63,43 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-      - name: Update .toc version
+      - name: Update .toc version and generate RELEASE.md
         run: |
+          VERSION="${{ needs.process-version.outputs.version }}"
+
           # Ensure we're on the latest main
           git fetch origin main
           git checkout main
           git pull origin main
-          
-          # Check if version already matches
+
+          # Set up remote with token for authentication
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+          # Conditionally update .toc
           CURRENT_VERSION=$(grep "## Version:" PreyMate.toc | sed -E 's/## Version: (.*)/\1/')
-          if [ "$CURRENT_VERSION" != "${{ needs.process-version.outputs.version }}" ]; then
-            # Make our change
-            sed -i "s/## Version: .*$/## Version: ${{ needs.process-version.outputs.version }}/" PreyMate.toc
-            
-            # Set up remote with token for authentication
-            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            
-            # Commit and push
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            sed -i "s/## Version: .*$/## Version: $VERSION/" PreyMate.toc
             git add PreyMate.toc
-            git commit -m "Update .toc to version ${{ needs.process-version.outputs.version }}"
+          fi
+
+          # Always generate RELEASE.md
+          HEADER=$(grep -m 1 "## \[$VERSION\]" CHANGELOG.md)
+          NOTES=$(awk "/^## \\[$VERSION\\]/{p=1;next} /^## \\[/{p=0} p" CHANGELOG.md)
+          {
+            echo "$HEADER"
+            echo ""
+            echo "[Full Changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)"
+            echo ""
+            printf '%s' "$NOTES"
+          } > RELEASE.md
+          git add RELEASE.md
+
+          # Commit and push only if there are staged changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Update files for version $VERSION"
             git push origin main
           else
-            echo "Version in .toc already matches ${{ needs.process-version.outputs.version }}, skipping update"
+            echo "No file changes to commit"
           fi
 
   create-release:
@@ -117,20 +132,12 @@ jobs:
           git tag -a "v${{ needs.process-version.outputs.version }}" -m "Version ${{ needs.process-version.outputs.version }}"
           git push origin "v${{ needs.process-version.outputs.version }}"
 
-      - name: Extract changelog entry
-        id: changelog
-        run: |
-          CHANGELOG_ENTRY=$(awk '/^## \['"${{ needs.process-version.outputs.version }}"'\]/{p=1;next} /^## \[/{p=0} p' CHANGELOG.md)
-          echo "CHANGELOG_ENTRY<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG_ENTRY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: "v${{ needs.process-version.outputs.version }}"
           name: "Version ${{ needs.process-version.outputs.version }}"
-          body: "${{ steps.changelog.outputs.CHANGELOG_ENTRY }}"
+          body_path: RELEASE.md
           draft: false
           prerelease: false

@@ -73,8 +73,8 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
     local options = C_GossipInfo.GetOptions()
     if not options then return end
 
-    -- Debug dump (always, when debug is on)
-    if PM.debug then
+    -- Debug dump (only when talking to Astalor, to avoid noise from every other NPC)
+    if PM.debug and npcName == NPC_NAME then
         local availableQuests = C_GossipInfo.GetAvailableQuests()
         local activeQuests = C_GossipInfo.GetActiveQuests()
 
@@ -113,14 +113,19 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         print(PM.PREFIX, "--- End GOSSIP_SHOW ---")
     end
 
-    -- Auto-accept: only if enabled and talking to the right NPC
+    -- Auto-accept: master toggle + mode
+    if npcName ~= NPC_NAME then return end
     local profile = PM:GetProfile()
     if not profile.autoAccept then return end
-    if npcName ~= NPC_NAME then return end
-    if IsShiftKeyDown() then
-        log("Shift held — skipping auto-accept")
-        return
+    local shiftHeld = IsShiftKeyDown()
+    local doAutoAccept
+    if profile.autoAcceptMode == PM.ACCEPT_CLICK then
+        doAutoAccept = not shiftHeld   -- normal click accepts, Shift skips
+    else
+        doAutoAccept = shiftHeld       -- Shift-click accepts, normal click is manual
     end
+    if not doAutoAccept then return end
+    log("Auto-accept triggered (mode=" .. tostring(profile.autoAcceptMode) .. ", shift=" .. tostring(shiftHeld) .. ")")
 
     -- Page 2: select difficulty (if we just clicked the hunt option)
     if pendingDifficulty then

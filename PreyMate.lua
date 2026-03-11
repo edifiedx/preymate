@@ -12,6 +12,9 @@ local REWARD_MARL      = 2
 local REWARD_DAWNCREST = 3
 local REWARD_ANGUISH   = 4
 
+PM.ACCEPT_SHIFT = 1   -- Shift-click to accept, normal click = manual
+PM.ACCEPT_CLICK = 2   -- Normal click to accept, Shift = skip
+
 local AUTOCOLLECT_DELAY = 0.5  -- seconds to wait after ShowQuestComplete before calling GetQuestReward
 
 PM.ADDON_NAME = "PreyMate"
@@ -20,6 +23,7 @@ PM.PREFIX = "[|cffcc3333Prey|rMate]"
 PM.PROFILE_DEFAULTS = {
     debug = false,
     autoAccept = false,
+    autoAcceptMode = 1,          -- 1 = shift-click to accept, 2 = click to accept (shift to skip)
     autoPayFee = false,
     preyLevel = PREY_NORMAL,
     autoComplete = false,        -- open reward frame and complete the quest automatically

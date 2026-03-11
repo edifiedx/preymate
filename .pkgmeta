@@ -2,11 +2,14 @@ package-as: PreyMate
 enable-nolib-creation: no
 
 manual-changelog:
-  filename: CHANGELOG.md
+  filename: RELEASE.md
   markup-type: markdown
 
 ignore:
   - README.md
+  - CHANGELOG.md
+  - RELEASE.md
+  - TODO.md
   - .gitignore
   - .git
   - .github

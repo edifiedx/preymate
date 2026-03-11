@@ -4,7 +4,7 @@ local PM = PreyMate
 local PREY_LEVELS = { "Normal", "Hard", "Nightmare" }
 local REWARD_OPTIONS = {
     { text = "Gold",       value = 1 },
-    { text = "Marl",       value = 2 },
+    { text = "Voidlight Marl", value = 2 },
     { text = "Dawncrest",  value = 3 },
     { text = "Anguish",    value = 4 },
 }
@@ -121,42 +121,80 @@ function PM:InitSettings()
     local settingsHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     settingsHeader:SetPoint("TOPLEFT", 16, yOff)
     settingsHeader:SetText("Settings")
-    yOff = yOff - 24
+    yOff = yOff - 16
 
     local profile = PM:GetProfile()
 
-    -- Auto-accept checkbox
-    local autoAcceptCB = CreateCheckbox(panel, "Auto-accept Prey quest", profile.autoAccept, function(self, checked)
+    -----------------------------------------------------------------
+    -- Auto Accept subsection
+    -----------------------------------------------------------------
+    local hrAcceptTop = panel:CreateTexture(nil, "ARTWORK")
+    hrAcceptTop:SetPoint("TOPLEFT", 16, yOff)
+    hrAcceptTop:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
+    hrAcceptTop:SetHeight(1)
+    hrAcceptTop:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    yOff = yOff - 14
+
+    local autoAcceptHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    autoAcceptHeader:SetPoint("TOPLEFT", 16, yOff)
+    autoAcceptHeader:SetText("Auto Accept")
+    yOff = yOff - 24
+
+    -- Enable auto-accept checkbox
+    local autoAcceptCB = CreateCheckbox(panel, "Enable auto-accept", profile.autoAccept, function(self, checked)
         local p = PM:GetProfile()
         p.autoAccept = checked
     end)
     autoAcceptCB:SetPoint("TOPLEFT", 14, yOff)
-
-    -- Shift-click tip
-    local shiftTip = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    shiftTip:SetPoint("LEFT", autoAcceptCB.Text, "RIGHT", 6, 0)
-    shiftTip:SetText("|cff888888(hold Shift to bypass)|r")
-
+    autoAcceptCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Automatically starts a Prey hunt when talking to Astalor Bloodsworn.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    autoAcceptCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
     yOff = yOff - 28
 
-    -- Prey level dropdown
-    local levelLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    levelLabel:SetPoint("TOPLEFT", 18, yOff)
-    levelLabel:SetText("Prey Level:")
+    -- Two-column labels: Hunt Level | Click behavior
+    local huntLevelLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    huntLevelLabel:SetPoint("TOPLEFT", 18, yOff)
+    huntLevelLabel:SetText("Hunt Level:")
 
+    local clickBehaviorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    clickBehaviorLabel:SetPoint("TOPLEFT", 220, yOff)
+    clickBehaviorLabel:SetText("Click behavior:")
+    yOff = yOff - 20
+
+    -- Two-column dropdowns: level (left) | accept mode (right)
     local levelOptions = {}
     for i, name in ipairs(PREY_LEVELS) do
         levelOptions[i] = { text = name, value = i }
     end
-
     local levelDropdown = CreateDropdown(panel, "PreyMateLevelDropdown", 120,
         levelOptions,
         function() return PM:GetProfile().preyLevel end,
         function(val) PM:GetProfile().preyLevel = val end
     )
-    levelDropdown:SetPoint("LEFT", levelLabel, "RIGHT", -8, -2)
+    levelDropdown:SetPoint("TOPLEFT", 10, yOff)
     PM.levelDropdown = levelDropdown
+
+    local acceptModeOptions = {
+        { text = "Hold Shift to auto-accept",         value = PM.ACCEPT_SHIFT },
+        { text = "Hold Shift to disable auto-accept", value = PM.ACCEPT_CLICK },
+    }
+    local acceptModeDropdown = CreateDropdown(panel, "PreyMateAcceptModeDropdown", 190,
+        acceptModeOptions,
+        function() return PM:GetProfile().autoAcceptMode end,
+        function(val) PM:GetProfile().autoAcceptMode = val end
+    )
+    acceptModeDropdown:SetPoint("TOPLEFT", 210, yOff)
     yOff = yOff - 36
+
+    local hrAcceptBottom = panel:CreateTexture(nil, "ARTWORK")
+    hrAcceptBottom:SetPoint("TOPLEFT", 16, yOff)
+    hrAcceptBottom:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
+    hrAcceptBottom:SetHeight(1)
+    hrAcceptBottom:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    yOff = yOff - 16
 
     -- Auto-pay fee checkbox
     local autoPayCB = CreateCheckbox(panel, "Auto-pay hunt fee", profile.autoPayFee, function(self, checked)
@@ -164,6 +202,12 @@ function PM:InitSettings()
         p.autoPayFee = checked
     end)
     autoPayCB:SetPoint("TOPLEFT", 14, yOff)
+    autoPayCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Automatically pays the hunt fee when prompted by Astalor Bloodsworn.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    autoPayCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
     yOff = yOff - 32
 
     -- Auto-complete checkbox
@@ -172,6 +216,12 @@ function PM:InitSettings()
         p.autoComplete = checked
     end)
     autoCompleteCB:SetPoint("TOPLEFT", 14, yOff)
+    autoCompleteCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Automatically turns in the hunt quest when your Prey target is slain.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    autoCompleteCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
     yOff = yOff - 28
 
     -- Auto-collect checkbox + reward dropdown (indented, sub-option of auto-complete)
@@ -180,6 +230,12 @@ function PM:InitSettings()
         p.autoCollect = checked
     end)
     autoCollectCB:SetPoint("TOPLEFT", 30, yOff)
+    autoCollectCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Automatically collects the selected reward when the quest is turned in.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    autoCollectCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     local rewardDropdown = CreateDropdown(panel, "PreyMateRewardDropdown", 110,
         REWARD_OPTIONS,
@@ -204,6 +260,12 @@ function PM:InitSettings()
         PM:ApplyProfile()
     end)
     debugCB:SetPoint("TOPLEFT", 14, yOff)
+    debugCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Prints detailed addon activity to the chat window.", nil, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    debugCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
     debugCB.Text:SetTextColor(0.5, 0.5, 0.5)
 
     -- Register with settings

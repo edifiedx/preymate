@@ -1,52 +1,68 @@
 # Changelog
 
-## [0.6.0]
-### 2026-03-10
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Added
+- Full named profile system: create (via clone), rename, delete, and switch profiles from the top of the settings panel
+- Clone auto-names the new profile after the current character-realm
+- Deleting the last remaining profile is blocked; "Default" can be deleted if another profile exists
+- Restore Defaults button resets the active profile to factory settings
+
+## [0.7.0] - 2026-03-11
+### Added
+- Tooltips on all settings panel checkboxes explaining what each option does
+
+### Changed
+- Auto-accept redesigned: the checkbox is now a master toggle; a new "Click behavior" dropdown lets you choose whether holding Shift triggers or skips auto-accept
+- Settings panel reorganized: Auto Accept options grouped into a dedicated section with Hunt Level and Click behavior dropdowns displayed side by side
+- Reward option renamed from "Marl" to "Voidlight Marl" to match the in-game currency name
+
+### Fixed
+- Gossip debug output now only fires when interacting with Astalor Bloodsworn, not all NPCs
+
+## [0.6.0] - 2026-03-10
 ### Added
 - Auto-complete hunt quest: automatically opens the reward frame when the hunt is complete
 - Auto-collect reward: automatically selects your preferred reward (Gold, Marl, Dawncrest, or Anguish) after completing the quest
 - Auto-complete and auto-collect settings added to the options panel
 - Login/reload recovery now triggers auto-complete and auto-collect if the hunt was already finished before the reload
 
-## [0.5.0]
-### 2026-03-10
+## [0.5.0] - 2026-03-10
 ### Changed
 - Hunt tracking now uses `C_QuestLog.GetActivePreyQuest()` instead of a hardcoded quest ID list, making detection more robust and future-proof
 - `QUEST_LOG_UPDATE` handler optimized to exit immediately when no hunt is active, eliminating unnecessary work on every quest log event
+
 ### Fixed
 - Tracking now correctly resumes on login or reload if a hunt quest is already active — handles both pre-reveal and post-reveal states
 
-## [0.4.0]
-### 2026-03-09
+## [0.4.0] - 2026-03-09
 ### Added
 - Hold Shift when clicking Astalor to bypass auto-accept
 - Shift-click hint text next to auto-accept checkbox in settings
 - Visual separator between main settings and debug option
 
-## [0.3.4]
-### 2026-03-09
+## [0.3.4] - 2026-03-09
 ### Fixed
 - `/pm` slash command now correctly opens the settings panel
+
 ### Removed
 - Non-functional CurseForge description update step from release workflow
 
-## [0.3.3]
-### 2026-03-09
+## [0.3.3] - 2026-03-09
 ### Added
 - CurseForge project description auto-updates from README on release
 
-## [0.3.2]
-### 2026-03-09
+## [0.3.2] - 2026-03-09
 ### Fixed
 - Removed invalid key from .pkgmeta causing CurseForge packaging errors
 
-## [0.3.1]
-### 2026-03-09
+## [0.3.1] - 2026-03-09
 ### Fixed
 - Release workflow now tags the correct commit (includes .toc version update)
 
-## [0.3.0]
-### 2026-03-09
+## [0.3.0] - 2026-03-09
 ### Added
 - Auto-pay hunt fee option (confirms gossip cost automatically during auto-accept flow)
 - Debug logging for gossip confirm events and difficulty selection details
@@ -55,14 +71,12 @@
 - Reordered settings: Auto-accept, Prey Level, Auto-pay, Debug
 - Debug logging label styled grey to reduce visual prominence
 
-## [0.2.1]
-### 2026-03-09
+## [0.2.1] - 2026-03-09
 ### Fixed
 - Corrected game version tag from 12.0.0 to 12.0.1
 - Added CurseForge project ID to packaging metadata
 
-## [0.2.0]
-### 2026-03-09
+## [0.2.0] - 2026-03-09
 ### Added
 - Settings panel in Options (ESC > Options > AddOns > PreyMate)
 - Auto-accept Prey hunt from Astalor Bloodsworn (toggle in settings)
@@ -81,8 +95,7 @@
 ### Fixed
 - Race condition where quest tracking would report success but not actually track
 
-## [0.1.0]
-### 2026-03-08
+## [0.1.0] - 2026-03-08
 ### Added
 - Automatically tracks the Prey world quest when a hunt quest is accepted
 - Retracks the hunt quest when your target has been revealed

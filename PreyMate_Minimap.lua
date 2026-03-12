@@ -5,6 +5,9 @@ local PM = PreyMate
 
 local PREY_LEVELS = { "Normal", "Hard", "Nightmare" }
 
+local TRAP_ITEM_ID = 255825
+local TRAP_MAX     = 5
+
 local ACCEPT_MODE_OPTIONS = {
     { text = "Hold Shift to accept",      value = 1 },
     { text = "Hold Shift to skip accept", value = 2 },
@@ -15,6 +18,23 @@ local REWARD_OPTIONS = {
     { text = "Dawncrest",      value = 3 },
     { text = "Anguish",        value = 4 },
 }
+
+---------------------------------------------------------------------
+-- Anguish tooltip helpers
+---------------------------------------------------------------------
+local function AngDeltaColor(delta)
+    if delta > 0 then return 0.2, 1, 0.2
+    elseif delta < 0 then return 1, 0.35, 0.35
+    else return 0.7, 0.7, 0.7 end
+end
+
+local function FormatAnguishDelta(delta)
+    if delta >= 0 then
+        return string.format("+%d Anguish", delta)
+    else
+        return string.format("%d Anguish", delta)
+    end
+end
 
 ---------------------------------------------------------------------
 -- Right-click context menu
@@ -104,6 +124,23 @@ local function ShowContextMenu(anchor)
         
         root:CreateDivider()
 
+        local profileSub = root:CreateButton("Switch Profile")
+        for _, n in ipairs(PM:GetProfileNames()) do
+            local name = n
+            profileSub:CreateRadio(name,
+                function()
+                    local _, current = PM:GetProfile()
+                    return current == name
+                end,
+                function()
+                    PM:SwitchProfile(name)
+                end
+            )
+        end
+
+        root:CreateDivider()
+
+        root:CreateButton("Print Session Stats", function() PM:PrintSessionStats() end)
         root:CreateButton("Open Settings", function()
             if PM.settingsCategory then
                 Settings.OpenToCategory(PM.settingsCategory.ID)
@@ -143,15 +180,122 @@ local function InitMinimapIcon()
         icon  = 7493985,
         OnClick = function(self, button)
             if button == "LeftButton" then
-                PM:Track()
+                local action = PM:GetProfile().leftClickAction
+                if action == PM.LCLICK_SETTINGS then
+                    if PM.settingsCategory then
+                        Settings.OpenToCategory(PM.settingsCategory.ID)
+                    end
+                elseif action == PM.LCLICK_STATS then
+                    PM:PrintSessionStats()
+                else
+                    PM:Track()
+                end
             elseif button == "RightButton" then
                 ShowContextMenu(self)
             end
         end,
         OnTooltipShow = function(tooltip)
             tooltip:SetText(PM.PREFIX)
-            tooltip:AddLine("Left-click to track Prey quest", 1, 1, 1)
-            tooltip:AddLine("Right-click for options", 1, 1, 1)
+
+            local profile = PM:GetProfile()
+
+            -- Trap count
+            local traps = GetItemCount(TRAP_ITEM_ID)
+            if traps then
+                local r, g, b = 1, 1, 1
+                if traps == 0 then r, g, b = 1, 0.35, 0.35
+                elseif traps < TRAP_MAX then r, g, b = 1, 0.85, 0.1 end
+                tooltip:AddDoubleLine("Traps:", traps .. "/" .. TRAP_MAX, 0.7, 0.7, 0.7, r, g, b)
+            end
+
+            -- Active automation settings
+            if profile.autoAccept then
+                local levelName = PM.PREY_LEVEL_NAMES[profile.preyLevel] or "?"
+                tooltip:AddDoubleLine("Hunt Level:", levelName, 0.7, 0.7, 0.7, 1, 1, 1)
+            end
+            if profile.autoCollect then
+                local rewardName = PM.REWARD_NAMES[profile.autoCollectReward] or "?"
+                tooltip:AddDoubleLine("Reward:", rewardName, 0.7, 0.7, 0.7, 1, 1, 1)
+            end
+
+            -- Anguish stats
+            local currentAnguish = PM:GetAnguish()
+            local s = PM.session
+            local segDelta     = (currentAnguish and s.sessionStartAnguish)
+                                  and (currentAnguish - s.sessionStartAnguish) or 0
+            local totalDelta   = segDelta + (s.carryoverDelta or 0)
+            local totalElapsed = (s.sessionStartTime and (GetTime() - s.sessionStartTime) or 0)
+                                + (s.carryoverElapsed or 0)
+
+            local hasCurrentHunt = PM.activeHuntQuestID and s.huntStartAnguish
+            local hasLastHunt    = s.lastHuntDelta ~= nil
+            local hasSession     = s.huntsCompleted > 0
+            local hasLastSession = PreyMateDB and PreyMateDB.lastSession
+                                   and PreyMateDB.lastSession.huntsCompleted > 0
+
+            local anyStats = currentAnguish ~= nil and (
+                profile.showStatBalance or hasCurrentHunt or hasLastHunt or
+                hasSession or hasLastSession
+            )
+
+            if anyStats then
+                tooltip:AddLine(" ")
+
+                if profile.showStatBalance then
+                    tooltip:AddDoubleLine("Anguish:", string.format("%d", currentAnguish), 0.7, 0.7, 0.7, 1, 1, 1)
+                end
+
+                if hasCurrentHunt then
+                    local d = currentAnguish - s.huntStartAnguish
+                    local r, g, b = AngDeltaColor(d)
+                    tooltip:AddDoubleLine("Current hunt:", FormatAnguishDelta(d), 0.7, 0.7, 0.7, r, g, b)
+                elseif hasLastHunt then
+                    local r, g, b = AngDeltaColor(s.lastHuntDelta)
+                    tooltip:AddDoubleLine("Last hunt:", FormatAnguishDelta(s.lastHuntDelta), 0.7, 0.7, 0.7, r, g, b)
+                end
+
+                if hasSession then
+                    if profile.showStatSession then
+                        local r, g, b = AngDeltaColor(totalDelta)
+                        tooltip:AddDoubleLine("Session:", FormatAnguishDelta(totalDelta), 0.7, 0.7, 0.7, r, g, b)
+                    end
+                    if profile.showStatPerHunt then
+                        local perHunt = math.floor(totalDelta / s.huntsCompleted + 0.5)
+                        local r, g, b = AngDeltaColor(perHunt)
+                        tooltip:AddDoubleLine("Per hunt:", FormatAnguishDelta(perHunt), 0.7, 0.7, 0.7, r, g, b)
+                    end
+                    if profile.showStatPerHour and totalElapsed >= 60 then
+                        local perHour = math.floor(totalDelta / totalElapsed * 3600 + 0.5)
+                        local r, g, b = AngDeltaColor(perHour)
+                        tooltip:AddDoubleLine("Per hour:", FormatAnguishDelta(perHour) .. "/hr", 0.7, 0.7, 0.7, r, g, b)
+                    end
+                elseif hasLastSession then
+                    local ls = PreyMateDB.lastSession
+                    if profile.showStatSession then
+                        local r, g, b = AngDeltaColor(ls.anguishDelta)
+                        tooltip:AddDoubleLine("Last session:", FormatAnguishDelta(ls.anguishDelta), 0.5, 0.5, 0.5, r * 0.7, g * 0.7, b * 0.7)
+                    end
+                    if profile.showStatPerHunt then
+                        local perHunt = math.floor(ls.anguishDelta / ls.huntsCompleted + 0.5)
+                        local r, g, b = AngDeltaColor(perHunt)
+                        tooltip:AddDoubleLine("Per hunt:", FormatAnguishDelta(perHunt), 0.5, 0.5, 0.5, r * 0.7, g * 0.7, b * 0.7)
+                    end
+                    if profile.showStatPerHour and ls.elapsedSeconds and ls.elapsedSeconds >= 60 then
+                        local perHour = math.floor(ls.anguishDelta / ls.elapsedSeconds * 3600 + 0.5)
+                        local r, g, b = AngDeltaColor(perHour)
+                        tooltip:AddDoubleLine("Per hour:", FormatAnguishDelta(perHour) .. "/hr", 0.5, 0.5, 0.5, r * 0.7, g * 0.7, b * 0.7)
+                    end
+                end
+            end
+
+            -- Click hints at bottom, muted
+            tooltip:AddLine(" ")
+            local leftHint = (profile.leftClickAction == PM.LCLICK_SETTINGS) and "Open settings"
+                          or (profile.leftClickAction == PM.LCLICK_STATS)    and "Print stats"
+                          or "Track hunt"
+            tooltip:AddDoubleLine("Left click:", leftHint, 1, 1, 1, 0.55, 0.55, 0.55)
+            tooltip:AddDoubleLine("Right click:", "Quick menu", 1, 1, 1, 0.55, 0.55, 0.55)
+
             tooltip:Show()
         end,
     })

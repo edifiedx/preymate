@@ -15,7 +15,14 @@ local REWARD_ANGUISH   = 4
 PM.ACCEPT_SHIFT = 1   -- Shift-click to accept, normal click = manual
 PM.ACCEPT_CLICK = 2   -- Normal click to accept, Shift = skip
 
+PM.LCLICK_TRACK    = 1  -- Left-click tracks hunt
+PM.LCLICK_SETTINGS = 2  -- Left-click opens settings
+PM.LCLICK_STATS    = 3  -- Left-click prints session stats
+
 local AUTOCOLLECT_DELAY = 0.5  -- seconds to wait after ShowQuestComplete before calling GetQuestReward
+
+-- Remnants of Anguish currency ID (confirmed via C_CurrencyInfo.GetCurrencyInfo(3392))
+local ANGUISH_CURRENCY_ID = 3392
 
 PM.ADDON_NAME = "PreyMate"
 PM.PREFIX = "[|cffcc3333Prey|rMate]"
@@ -26,10 +33,37 @@ PM.PROFILE_DEFAULTS = {
     autoAcceptMode = 1,          -- 1 = shift-click to accept, 2 = click to accept (shift to skip)
     autoPayFee = false,
     preyLevel = PREY_NORMAL,
-    autoComplete = false,        -- open reward frame and complete the quest automatically
+    autoComplete = true,         -- open reward frame and complete the quest automatically
     autoCollect = false,         -- automatically pick a reward if choices are presented
-    autoCollectReward = REWARD_GOLD,
+    autoCollectReward = REWARD_DAWNCREST,
     showMinimapIcon = true,
+    leftClickAction = 1,         -- 1 = track hunt, 2 = open settings
+    showStatBalance = true,      -- show current Anguish balance in minimap tooltip
+    showStatSession = true,      -- show session delta in minimap tooltip
+    showStatPerHunt = true,      -- show per-hunt average in minimap tooltip
+    showStatPerHour = false,     -- show per-hour rate in minimap tooltip
+}
+
+-- Shared display names (used by stats and context menus across modules)
+PM.PREY_LEVEL_NAMES = { "Normal", "Hard", "Nightmare" }
+PM.REWARD_NAMES     = { "Gold", "Voidlight Marl", "Dawncrest", "Anguish" }
+
+-- Session stats — reset each login, never persisted to SavedVariables
+PM.session = {
+    huntsStarted     = 0,
+    huntsCompleted   = 0,
+    autoAccepts      = 0,
+    autoFeesPaid     = 0,
+    difficultyCounts = { 0, 0, 0 },      -- [1]=Normal  [2]=Hard  [3]=Nightmare
+    rewardCounts     = { 0, 0, 0, 0 },   -- [1]=Gold  [2]=Marl  [3]=Dawncrest  [4]=Anguish
+    -- Anguish currency tracking
+    sessionStartAnguish = nil,  -- quantity at start of this segment (resets each reload)
+    sessionStartTime    = nil,  -- GetTime() at start of this segment
+    huntStartAnguish    = nil,  -- quantity when current hunt began (pre-fee)
+    lastHuntDelta       = nil,  -- net Anguish change for the most recently finished hunt
+    -- Carryover from previous segment — survives /reload
+    carryoverDelta      = 0,    -- accumulated Anguish delta before last reload
+    carryoverElapsed    = 0,    -- accumulated seconds elapsed before last reload
 }
 
 local DEBUG = false
@@ -56,6 +90,92 @@ function PM:ApplyProfile()
     local profile = self:GetProfile()
     DEBUG = profile.debug
     PM.debug = DEBUG
+end
+
+function PM:GetProfileNames()
+    local names = {}
+    for name in pairs(PreyMateDB.profiles) do
+        names[#names + 1] = name
+    end
+    table.sort(names)
+    return names
+end
+
+function PM:SwitchProfile(name)
+    if not PreyMateDB.profiles[name] then return end
+    PreyMateDB.characterProfiles[self:GetCharKey()] = name
+    self:ApplyProfile()
+    if self.RefreshOptions then self:RefreshOptions() end
+end
+
+function PM:CloneProfile()
+    local src, _ = self:GetProfile()
+    local destName = self:GetCharKey()
+    if PreyMateDB.profiles[destName] then
+        local i = 2
+        while PreyMateDB.profiles[destName .. " (" .. i .. ")"] do
+            i = i + 1
+        end
+        destName = destName .. " (" .. i .. ")"
+    end
+    local copy = {}
+    for k, v in pairs(src) do copy[k] = v end
+    PreyMateDB.profiles[destName] = copy
+    self:SwitchProfile(destName)
+end
+
+function PM:RenameProfile(oldName, newName)
+    newName = newName:match("^%s*(.-)%s*$")
+    if newName == "" then
+        print(PM.PREFIX, "Profile name cannot be empty.")
+        return
+    end
+    if PreyMateDB.profiles[newName] then
+        print(PM.PREFIX, "A profile named '" .. newName .. "' already exists.")
+        return
+    end
+    PreyMateDB.profiles[newName] = PreyMateDB.profiles[oldName]
+    PreyMateDB.profiles[oldName] = nil
+    for charKey, pName in pairs(PreyMateDB.characterProfiles) do
+        if pName == oldName then
+            PreyMateDB.characterProfiles[charKey] = newName
+        end
+    end
+    if self.RefreshOptions then self:RefreshOptions() end
+end
+
+function PM:DeleteProfile(name)
+    local names = self:GetProfileNames()
+    if #names <= 1 then return end
+    local fallback = names[1] ~= name and names[1] or names[2]
+    local charKey = self:GetCharKey()
+    local wasActive = (PreyMateDB.characterProfiles[charKey] or "Default") == name
+    for ck, pn in pairs(PreyMateDB.characterProfiles) do
+        if pn == name then
+            PreyMateDB.characterProfiles[ck] = fallback
+        end
+    end
+    PreyMateDB.profiles[name] = nil
+    self:ApplyProfile()
+    if self.RefreshOptions then self:RefreshOptions() end
+    if wasActive and #names > 2 then
+        StaticPopup_Show("PREYMATE_POST_DELETE", fallback)
+    end
+end
+
+function PM:RestoreDefaults()
+    local profile = self:GetProfile()
+    for k, v in pairs(PM.PROFILE_DEFAULTS) do
+        profile[k] = v
+    end
+    self:ApplyProfile()
+    if self.RefreshOptions then self:RefreshOptions() end
+end
+
+-- Returns the player's current Anguish quantity, or nil if not available.
+function PM:GetAnguish()
+    local info = C_CurrencyInfo.GetCurrencyInfo(ANGUISH_CURRENCY_ID)
+    return info and info.quantity or nil
 end
 
 ---------------------------------------------------------------------
@@ -114,6 +234,25 @@ local function FindAndTrackPreyWorldQuest(retryCount)
     return false
 end
 
+-- Schedules a 2-second delayed snapshot of the hunt's Anguish delta.
+-- The delay lets both the fee deduction and the reward credit settle
+-- before we read the currency. Guards against double-scheduling.
+local pendingHuntDeltaCapture = false
+local function ScheduleHuntDeltaCapture()
+    if pendingHuntDeltaCapture then return end
+    local startAnguish = PM.session.huntStartAnguish
+    if not startAnguish then return end
+    pendingHuntDeltaCapture = true
+    C_Timer.After(2, function()
+        pendingHuntDeltaCapture = false
+        local endAnguish = PM:GetAnguish()
+        if endAnguish then
+            PM.session.lastHuntDelta = endAnguish - startAnguish
+        end
+        PM.session.huntStartAnguish = nil
+    end)
+end
+
 ---------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------
@@ -123,6 +262,7 @@ frame:RegisterEvent("QUEST_LOG_UPDATE")
 frame:RegisterEvent("QUEST_REMOVED")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("PLAYER_LOGOUT")
 
 frame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == PM.ADDON_NAME then
@@ -148,7 +288,63 @@ frame:SetScript("OnEvent", function(self, event, arg1)
         self:UnregisterEvent("ADDON_LOADED")
         log("Loaded! Use /pm track to manually find and track")
 
+    elseif event == "PLAYER_LOGOUT" then
+        -- Snapshot the full session so a /reload can resume without losing progress.
+        local endAnguish = PM:GetAnguish()
+        local segDelta   = (endAnguish and PM.session.sessionStartAnguish)
+                            and (endAnguish - PM.session.sessionStartAnguish) or 0
+        local totalDelta   = segDelta + (PM.session.carryoverDelta or 0)
+        local segElapsed   = PM.session.sessionStartTime
+                             and (GetTime() - PM.session.sessionStartTime) or 0
+        local totalElapsed = math.max(segElapsed + (PM.session.carryoverElapsed or 0), 0)
+        PreyMateDB.currentSession = {
+            savedAt          = GetServerTime(),
+            anguishDelta     = totalDelta,
+            elapsedSeconds   = totalElapsed,
+            huntsCompleted   = PM.session.huntsCompleted,
+            huntsStarted     = PM.session.huntsStarted,
+            lastHuntDelta    = PM.session.lastHuntDelta,
+            rewardCounts     = {
+                PM.session.rewardCounts[1], PM.session.rewardCounts[2],
+                PM.session.rewardCounts[3], PM.session.rewardCounts[4],
+            },
+            difficultyCounts = {
+                PM.session.difficultyCounts[1],
+                PM.session.difficultyCounts[2],
+                PM.session.difficultyCounts[3],
+            },
+        }
+        if PM.session.huntsCompleted > 0 then
+            PreyMateDB.lastSession = {
+                anguishDelta   = totalDelta,
+                huntsCompleted = PM.session.huntsCompleted,
+                elapsedSeconds = totalElapsed,
+            }
+        end
+
     elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Restore session counters if reloading within 5 minutes; otherwise start fresh.
+        local cs = PreyMateDB and PreyMateDB.currentSession
+        if cs and cs.savedAt and (GetServerTime() - cs.savedAt) < 300 then
+            PM.session.huntsCompleted    = cs.huntsCompleted
+            PM.session.huntsStarted      = cs.huntsStarted
+            PM.session.lastHuntDelta     = cs.lastHuntDelta
+            PM.session.rewardCounts      = {
+                cs.rewardCounts[1], cs.rewardCounts[2],
+                cs.rewardCounts[3], cs.rewardCounts[4],
+            }
+            PM.session.difficultyCounts  = {
+                cs.difficultyCounts[1],
+                cs.difficultyCounts[2],
+                cs.difficultyCounts[3],
+            }
+            PM.session.carryoverDelta    = cs.anguishDelta
+            PM.session.carryoverElapsed  = cs.elapsedSeconds
+            log("Session restored from reload:", cs.huntsCompleted, "hunts,",
+                string.format("%+d", cs.anguishDelta), "Anguish carried over")
+        end
+        PM.session.sessionStartAnguish = PM:GetAnguish()
+        PM.session.sessionStartTime = GetTime()
         -- Quest data is now available. Restore tracking if we're mid-hunt.
         local resumeID = C_QuestLog.GetActivePreyQuest()
         log("Login/reload recovery: GetActivePreyQuest() =", tostring(resumeID))
@@ -184,6 +380,12 @@ frame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "QUEST_ACCEPTED" then
         if C_QuestLog.GetActivePreyQuest() == arg1 then
             PM.activeHuntQuestID = arg1
+            PM.session.huntsStarted = PM.session.huntsStarted + 1
+            -- Auto-accept path sets huntStartAnguish on Page 1 gossip (pre-fee).
+            -- For manual accepts, snapshot here as a fallback.
+            if not PM.session.huntStartAnguish then
+                PM.session.huntStartAnguish = PM:GetAnguish()
+            end
             log("Hunt quest accepted! Finding world quest...")
             C_Timer.After(0.5, function() FindAndTrackPreyWorldQuest(0) end)
         end
@@ -191,7 +393,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "QUEST_REMOVED" then
         if arg1 == PM.activeHuntQuestID then
             log("Hunt quest removed, clearing tracking")
+            ScheduleHuntDeltaCapture()
             PM.activeHuntQuestID = nil
+            PM.activeHuntComplete = false
         end
 
     elseif event == "QUEST_LOG_UPDATE" then
@@ -202,6 +406,10 @@ frame:SetScript("OnEvent", function(self, event, arg1)
         local profile = PM:GetProfile()
 
         if C_QuestLog.IsComplete(qID) then
+            if not PM.activeHuntComplete then
+                PM.activeHuntComplete = true
+                PM.session.huntsCompleted = PM.session.huntsCompleted + 1
+            end
             log("Hunt quest complete")
             if profile.autoComplete then
                 log("Auto-completing quest")
@@ -210,9 +418,14 @@ frame:SetScript("OnEvent", function(self, event, arg1)
                 if profile.autoCollect then
                     C_Timer.After(AUTOCOLLECT_DELAY, function()
                         local choices = GetNumQuestChoices()
-                        log("Auto-collecting reward, choices=", choices, "index=", profile.autoCollectReward)
-                        GetQuestReward(choices > 1 and profile.autoCollectReward or 0)
+                        local rewardIdx = profile.autoCollectReward
+                        log("Auto-collecting reward, choices=", choices, "index=", rewardIdx)
+                        PM.session.rewardCounts[rewardIdx] = (PM.session.rewardCounts[rewardIdx] or 0) + 1
+                        GetQuestReward(choices > 1 and rewardIdx or 0)
+                        ScheduleHuntDeltaCapture()  -- runs 2s later, after reward credits
                     end)
+                else
+                    ScheduleHuntDeltaCapture()  -- player picks reward manually; snapshot anyway
                 end
             end
         elseif C_QuestLog.GetNumQuestObjectives(qID) == 2 then
@@ -229,11 +442,46 @@ function PM:Track()
     FindAndTrackPreyWorldQuest()
 end
 
+function PM:PrintSessionStats()
+    local s = self.session
+    print(self.PREFIX, "|cffffff00Session Stats|r")
+    print(self.PREFIX, "  Hunts started:  ", s.huntsStarted)
+    print(self.PREFIX, "  Hunts completed:", s.huntsCompleted)
+    if s.autoAccepts > 0 then
+        print(self.PREFIX, "  Auto-accepted:  ", s.autoAccepts)
+    end
+    if s.autoFeesPaid > 0 then
+        print(self.PREFIX, "  Fees auto-paid: ", s.autoFeesPaid)
+    end
+    local diffAny = false
+    for i = 1, 3 do if (s.difficultyCounts[i] or 0) > 0 then diffAny = true; break end end
+    if diffAny then
+        print(self.PREFIX, "  Difficulty:")
+        for i = 1, 3 do
+            if (s.difficultyCounts[i] or 0) > 0 then
+                print(self.PREFIX, "    " .. self.PREY_LEVEL_NAMES[i] .. ": " .. s.difficultyCounts[i])
+            end
+        end
+    end
+    local rewardAny = false
+    for i = 1, 4 do if (s.rewardCounts[i] or 0) > 0 then rewardAny = true; break end end
+    if rewardAny then
+        print(self.PREFIX, "  Rewards:")
+        for i = 1, 4 do
+            if (s.rewardCounts[i] or 0) > 0 then
+                print(self.PREFIX, "    " .. self.REWARD_NAMES[i] .. ": " .. s.rewardCounts[i])
+            end
+        end
+    end
+end
+
 SLASH_PREYMATE1 = "/pm"
 SlashCmdList["PREYMATE"] = function(msg)
     msg = (msg or ""):lower():match("^%s*(.-)%s*$")
     if msg == "track" then
         PM:Track()
+    elseif msg == "stats" then
+        PM:PrintSessionStats()
     elseif PM.settingsCategory then
         Settings.OpenToCategory(PM.settingsCategory.ID)
     else

@@ -29,6 +29,7 @@ StaticPopupDialogs["PREYMATE_DIFFICULTY_UNAVAILABLE"] = {
         log("Updated difficulty to", pendingFallback.fallbackName)
         if PM.levelDropdown then PM.levelDropdown.Refresh() end
         pendingPayFee = PM:GetProfile().autoPayFee
+        PM.session.difficultyCounts[pendingFallback.fallbackIndex] = (PM.session.difficultyCounts[pendingFallback.fallbackIndex] or 0) + 1
         C_GossipInfo.SelectOption(pendingFallback.opt.gossipOptionID)
         pendingFallback = nil
     end,
@@ -56,6 +57,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
             local confirmText = tostring(arg2 or "")
             if confirmText:lower():find("hunt") then
                 pendingPayFee = false
+                PM.session.autoFeesPaid = PM.session.autoFeesPaid + 1
                 log("Auto-paying hunt fee")
                 C_GossipInfo.SelectOption(arg1, "", true)
                 StaticPopup_Hide("GOSSIP_CONFIRM")
@@ -146,6 +148,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
                 "| icon=" .. tostring(selected.icon),
                 "| orderIndex=" .. tostring(selected.orderIndex))
             pendingPayFee = profile.autoPayFee
+            PM.session.difficultyCounts[profile.preyLevel] = (PM.session.difficultyCounts[profile.preyLevel] or 0) + 1
             C_GossipInfo.SelectOption(selected.gossipOptionID)
             return
         end
@@ -189,6 +192,8 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
         if opt.gossipOptionID == GOSSIP_OPTION_ID then
             log("Auto-accepting Prey hunt from", npcName)
             pendingDifficulty = true
+            PM.session.autoAccepts = PM.session.autoAccepts + 1
+            PM.session.huntStartAnguish = PM:GetAnguish()  -- snapshot before fee is charged
             C_GossipInfo.SelectOption(opt.gossipOptionID)
             return
         end

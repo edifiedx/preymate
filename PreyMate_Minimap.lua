@@ -208,6 +208,11 @@ local function InitMinimapIcon()
                 tooltip:AddDoubleLine("Traps:", traps .. "/" .. TRAP_MAX, 0.7, 0.7, 0.7, r, g, b)
             end
 
+            -- Active world quest type
+            if PM.activeWorldQuestType then
+                tooltip:AddDoubleLine("Hunt Type:", PM.activeWorldQuestType, 0.7, 0.7, 0.7, 1, 1, 1)
+            end
+
             -- Active automation settings
             if profile.autoAccept then
                 local levelName = PM.PREY_LEVEL_NAMES[profile.preyLevel] or "?"

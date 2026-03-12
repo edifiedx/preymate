@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-03-12
+### Added
+- Minimap tooltip now shows the active hunt type (Kill Enemies, Deactivate Shrines, or Chase)
+
 ## [1.0.0] - 2026-03-12
 ### Added
 - Full named profile system: clone, rename, delete, and switch profiles from the top of the settings panel

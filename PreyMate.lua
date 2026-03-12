@@ -186,10 +186,23 @@ local preyWorldQuestIDs = {
     91590, 91602, 91207, 91604, 91523, 91591,
 }
 
+local preyQuestTypeMap = {
+    -- Apex Predator: kill enemies
+    [91601] = "Kill Enemies", [91602] = "Kill Enemies",
+    [91604] = "Kill Enemies", [91207] = "Kill Enemies",
+    -- Concealed Threat: deactivate shrines
+    [91523] = "Deactivate Shrines", [91592] = "Deactivate Shrines",
+    [91590] = "Deactivate Shrines", [91591] = "Deactivate Shrines",
+    -- Endurance Hunter: chase
+    [91596] = "Chase", [91595] = "Chase",
+    [91458] = "Chase",  [91594] = "Chase",
+}
+
 -- The hunt quest the player is currently on, or nil if none.
 -- Set on QUEST_ACCEPTED (or restored at login via GetActivePreyQuest),
 -- cleared when the target is revealed (2nd objective unlocked).
-PM.activeHuntQuestID = nil
+PM.activeHuntQuestID  = nil
+PM.activeWorldQuestType = nil  -- "Kill Enemies", "Deactivate Shrines", or "Chase"
 
 local function FindAndTrackPreyWorldQuest(retryCount)
     retryCount = retryCount or 0
@@ -205,7 +218,8 @@ local function FindAndTrackPreyWorldQuest(retryCount)
             C_SuperTrack.SetSuperTrackedQuestID(qID)
 
             if C_SuperTrack.GetSuperTrackedQuestID() == qID then
-                log("Now tracking!")
+                PM.activeWorldQuestType = preyQuestTypeMap[qID]
+                log("Now tracking!", PM.activeWorldQuestType or "(unknown type)")
                 return true
             end
 
@@ -394,8 +408,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
         if arg1 == PM.activeHuntQuestID then
             log("Hunt quest removed, clearing tracking")
             ScheduleHuntDeltaCapture()
-            PM.activeHuntQuestID = nil
-            PM.activeHuntComplete = false
+            PM.activeHuntQuestID   = nil
+            PM.activeWorldQuestType = nil
+            PM.activeHuntComplete  = false
         end
 
     elseif event == "QUEST_LOG_UPDATE" then

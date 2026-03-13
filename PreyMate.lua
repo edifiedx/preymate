@@ -24,6 +24,18 @@ local AUTOCOLLECT_DELAY = 0.5  -- seconds to wait after ShowQuestComplete before
 -- Remnants of Anguish currency ID (confirmed via C_CurrencyInfo.GetCurrencyInfo(3392))
 local ANGUISH_CURRENCY_ID = 3392
 
+-- Currency IDs for hunt quest rewards (6th return of GetQuestItemInfo)
+-- Gold pouch is an item, not a currency — matched by elimination
+local REWARD_CURRENCY_IDS = {
+    [3316] = REWARD_MARL,       -- Voidlight Marl
+    [3341] = REWARD_DAWNCREST,  -- Veteran Dawncrest
+    [3383] = REWARD_DAWNCREST,  -- Adventurer Dawncrest
+    [3343] = REWARD_DAWNCREST,  -- Champion Dawncrest
+    [3345] = REWARD_DAWNCREST,  -- Hero Dawncrest
+    [3347] = REWARD_DAWNCREST,  -- Myth Dawncrest
+    [3392] = REWARD_ANGUISH,    -- Remnant of Anguish
+}
+
 PM.ADDON_NAME = "PreyMate"
 PM.PREFIX = "[|cffcc3333Prey|rMate]"
 
@@ -74,6 +86,85 @@ local DEBUG = false
 
 local function log(...)
     if DEBUG then print(PM.PREFIX, ...) end
+end
+
+local function info(...)
+    print(PM.PREFIX, ...)
+end
+
+-- Expected slot order: 1=Gold, 2=Marl, 3=Dawncrest, 4=Anguish
+-- If this ever changes, FindRewardChoiceIndex handles it via currency ID matching
+local EXPECTED_SLOT_REWARD = {
+    [1] = REWARD_GOLD,
+    [2] = REWARD_MARL,
+    [3] = REWARD_DAWNCREST,
+    [4] = REWARD_ANGUISH,
+}
+
+-- Log all quest reward choices and verify they match expected positions.
+local function LogRewardChoices(choices)
+    log("Reward choices:", choices)
+    local orderMatch = true
+    for i = 1, choices do
+        local name, _, _, _, _, id = GetQuestItemInfo("choice", i)
+        local cInfo = C_CurrencyInfo.GetCurrencyInfo(id)
+        local label = cInfo and cInfo.name or name
+        local mapped = REWARD_CURRENCY_IDS[id] or REWARD_GOLD
+        local expected = EXPECTED_SLOT_REWARD[i]
+        local ok = (mapped == expected)
+        if not ok then orderMatch = false end
+        log("  Slot", i, ":", label, "(id:", id, ")",
+            "=>", PM.REWARD_NAMES[mapped] or "?",
+            ok and "|cff00ff00OK|r" or "|cffff0000MISMATCH (expected " .. (PM.REWARD_NAMES[expected] or "?") .. ")|r")
+    end
+    if orderMatch then
+        log("  Slot order: |cff00ff00VERIFIED|r — matches expected layout")
+    else
+        log("  Slot order: |cffff9900DIFFERS|r — using currency ID matching (safe)")
+    end
+end
+
+-- Scan quest reward choices by currency ID to find the correct slot index.
+-- Returns the 1-based choice index for GetQuestReward(), or nil if not found.
+local function FindRewardChoiceIndex(wantedReward)
+    local choices = GetNumQuestChoices()
+    if choices <= 1 then return choices end  -- 0 or 1 = no choice needed
+    LogRewardChoices(choices)
+    log("Looking for reward type:", PM.REWARD_NAMES[wantedReward] or "?", "(const:", wantedReward, ")")
+    -- Build ID list for all slots for the info summary
+    local slotIDs = {}
+    for i = 1, choices do
+        local _, _, _, _, _, id = GetQuestItemInfo("choice", i)
+        slotIDs[i] = id
+    end
+    local idList = "{" .. table.concat(slotIDs, ", ") .. "}"
+    -- Gold: find the slot that is NOT a known currency
+    if wantedReward == REWARD_GOLD then
+        for i = 1, choices do
+            local name, _, _, _, _, id = GetQuestItemInfo("choice", i)
+            if not REWARD_CURRENCY_IDS[id] then
+                log("  -> MATCH slot", i, ":", name, "(id:", id, ") — not a known currency, treating as Gold")
+                info("Rewards", idList, "Selecting (" .. i .. "){" .. id .. "} \"" .. name .. "\"")
+                return i
+            end
+        end
+    else
+        -- Currency reward: match by currency ID
+        for i = 1, choices do
+            local name, _, _, _, _, id = GetQuestItemInfo("choice", i)
+            local mapped = REWARD_CURRENCY_IDS[id]
+            if mapped == wantedReward then
+                local cInfo = C_CurrencyInfo.GetCurrencyInfo(id)
+                local label = cInfo and cInfo.name or name
+                log("  -> MATCH slot", i, ":", label, "(id:", id, ") maps to", PM.REWARD_NAMES[mapped] or "?")
+                info("Rewards", idList, "Selecting (" .. i .. "){" .. id .. "} \"" .. label .. "\"")
+                return i
+            end
+        end
+    end
+    log("  -> NO MATCH found for", PM.REWARD_NAMES[wantedReward] or "?")
+    info("Rewards", idList, "— could not find " .. (PM.REWARD_NAMES[wantedReward] or "?"))
+    return nil  -- not found
 end
 
 function PM:GetCharKey()
@@ -400,16 +491,26 @@ frame:SetScript("OnEvent", function(self, event, arg1)
                 log("Hunt already complete at login/reload")
                 local profile = PM:GetProfile()
                 if profile.autoComplete then
-                    log("Auto-completing quest on recovery")
+                    log("Auto-completing quest on recovery (delayed 1s for UI)")
                     PM.activeHuntQuestID = nil
-                    ShowQuestComplete(resumeID)
-                    if profile.autoCollect then
-                        C_Timer.After(AUTOCOLLECT_DELAY, function()
-                            local choices = GetNumQuestChoices()
-                            log("Auto-collecting reward, choices=", choices, "index=", profile.autoCollectReward)
-                            GetQuestReward(choices > 1 and profile.autoCollectReward or 0)
+                    local RECOVERY_DELAY = 1
+                    local RECOVERY_COLLECT_DELAY = 1.5  -- longer than normal; frame needs time after ShowQuestComplete on recovery
+                    C_Timer.After(RECOVERY_DELAY, function()
+                        ShowQuestComplete(resumeID)
+                        C_Timer.After(RECOVERY_COLLECT_DELAY, function()
+                            if profile.autoCollect then
+                                local idx = FindRewardChoiceIndex(profile.autoCollectReward)
+                                log("Auto-collecting reward, wanted=", profile.autoCollectReward, "slot=", tostring(idx))
+                                if idx then
+                                    log("Calling GetQuestReward(", idx, ")")
+                                    GetQuestReward(idx)
+                                    log("GetQuestReward returned")
+                                end
+                            else
+                                LogRewardChoices(GetNumQuestChoices())
+                            end
                         end)
-                    end
+                    end)
                 end
             elseif numObj == 2 then
                 log("Target already revealed, super-tracking hunt quest")
@@ -476,14 +577,18 @@ frame:SetScript("OnEvent", function(self, event, arg1)
                 ShowQuestComplete(qID)
                 if profile.autoCollect then
                     C_Timer.After(AUTOCOLLECT_DELAY, function()
-                        local choices = GetNumQuestChoices()
-                        local rewardIdx = profile.autoCollectReward
-                        log("Auto-collecting reward, choices=", choices, "index=", rewardIdx)
-                        PM.session.rewardCounts[rewardIdx] = (PM.session.rewardCounts[rewardIdx] or 0) + 1
-                        GetQuestReward(choices > 1 and rewardIdx or 0)
+                        local idx = FindRewardChoiceIndex(profile.autoCollectReward)
+                        log("Auto-collecting reward, wanted=", profile.autoCollectReward, "slot=", tostring(idx))
+                        if idx then
+                            PM.session.rewardCounts[profile.autoCollectReward] = (PM.session.rewardCounts[profile.autoCollectReward] or 0) + 1
+                            GetQuestReward(idx)
+                        end
                         ScheduleHuntDeltaCapture()  -- runs 2s later, after reward credits
                     end)
                 else
+                    C_Timer.After(AUTOCOLLECT_DELAY, function()
+                        LogRewardChoices(GetNumQuestChoices())
+                    end)
                     ScheduleHuntDeltaCapture()  -- player picks reward manually; snapshot anyway
                 end
             end

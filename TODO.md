@@ -6,6 +6,117 @@ Open questions are marked **[?]**. Items are loosely ordered by priority.
 
 ## Next Up
 
+### Weekly Hunt Tracker (Journey Points + Gear)
+
+A tracker for weekly hunt reward milestones — warband-wide JP bonus and per-character gear drops.
+
+**Confirmed: Quest line 5945 — dual-flag system ✅**
+
+`C_QuestLine.GetQuestLineQuests(5945)` returns **90 quests** — 30 unique prey targets × 3 difficulties.
+Two distinct flag APIs give us two different views:
+
+| API | Scope | What it tracks |
+|---|---|---|
+| `IsQuestFlaggedCompleted(qid)` | Per-character | **Table hunts only** — weekly lockout per target+difficulty |
+| `IsQuestFlaggedCompletedOnAccount(qid)` | Warband (account) | **All hunts** (table + random) — warband-wide total |
+
+Both reset on weekly maintenance. No saved state or week rollover logic needed.
+
+**How random hunts work:**
+- Random hunts reuse quest IDs from the same 90-quest pool
+- They flag at Account level but **not** at Character level
+- This prevents them from locking out table hunt targets per-character
+- Confirmed: 3 characters with 4+1+0=5 char-flagged, but 9 account-flagged — the 4 extra are random hunts
+
+**Quest ID ranges (confirmed):**
+- Normal: 91095–91124 (30 quests)
+- Hard + Nightmare: 91210–91269 (interleaved by target — H/NM/H/NM)
+
+**Currencies confirmed:**
+- `3316` — Voidlight Marl (quantity 5618, no cap) ✅
+- `3386` — Renown - Prey (current 3, max 10) — renown track, not a weekly counter
+- `3392` — Remnants of Anguish (already tracked) ✅
+
+**Still open:**
+- [ ] How many gear drops per difficulty per character per week? (1? 2?)
+- [ ] Is gear tracked by a separate hidden quest flag, or is it just "first table hunt at that difficulty"?
+- [ ] Exact JP bonus threshold — is it 4 hunts or some other number?
+
+#### Core Scan Functions
+
+```lua
+-- Warband total hunts this week (table + random) — for JP bonus tracking
+function PM:ScanWarbandHunts()
+    local quests = C_QuestLine.GetQuestLineQuests(5945)
+    local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
+    for _, qid in ipairs(quests) do
+        if C_QuestLog.IsQuestFlaggedCompletedOnAccount(qid) then
+            local title = C_QuestLog.GetTitleForQuestID(qid) or ""
+            local diff = title:match("%((%a+)%)$") or "Unknown"
+            counts[diff] = (counts[diff] or 0) + 1
+            counts.total = counts.total + 1
+        end
+    end
+    return counts
+end
+
+-- Per-character table hunts this week — for gear tracking
+function PM:ScanCharacterHunts()
+    local quests = C_QuestLine.GetQuestLineQuests(5945)
+    local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
+    for _, qid in ipairs(quests) do
+        if C_QuestLog.IsQuestFlaggedCompleted(qid) then
+            local title = C_QuestLog.GetTitleForQuestID(qid) or ""
+            local diff = title:match("%((%a+)%)$") or "Unknown"
+            counts[diff] = (counts[diff] or 0) + 1
+            counts.total = counts.total + 1
+        end
+    end
+    return counts
+end
+```
+
+#### Minimap Tooltip Display
+
+```
+Weekly Hunts (Warband): 9  [4/4 bonus ✓]
+  Uncommon:  N:0  H:4           -- per-char table hunts
+  Grimrath:  N:0  H:1
+```
+
+#### Settings — Character Manager Sub-Page
+
+A **separate settings sub-category** (registered via `Settings.RegisterCanvasLayoutSubcategory`):
+
+- **Header:** "Character Tracker"
+- **List of characters** from `PreyMateDB.trackerCharacters` with:
+  - Character name + realm (label)
+  - "Show in tooltip" checkbox
+  - "Remove" button (with confirmation)
+- Characters auto-appear when they log in — no manual "add" needed
+
+**New file:** `PreyMate_Tracker.lua` — scan functions, tooltip integration
+**Settings integration:** Sub-page in `PreyMate_Options.lua` or `PreyMate_TrackerOptions.lua`
+
+#### Implementation Phases
+
+**Phase 1 — Core scanner + tooltip (building now):**
+- `PM:ScanWarbandHunts()` and `PM:ScanCharacterHunts()` in core
+- Auto-register character in `PreyMateDB.trackerCharacters` on login
+- Tooltip: warband total + bonus progress, current char's per-difficulty breakdown
+- Profile default: `showWeeklyTracker = true`
+
+**Phase 2 — Multi-character tooltip:**
+- Cache per-char scan results on login (saved to `PreyMateDB.trackerCharacters[key].lastScan`)
+- Show all opted-in characters in tooltip warband view
+
+**Phase 3 — Character manager settings page:**
+- Sub-category UI
+- Show/hide per-character
+- Remove characters
+
+---
+
 ### Open Prey Season Journal (Left-Click Option)
 - Add a 4th left-click action: **Open Season Journal** — jumps directly to the Prey progression track in the Adventure Journal / Seasonal UI
 - Need to discover the correct API call. Candidates to probe in-game:

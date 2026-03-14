@@ -249,15 +249,17 @@ local function InitMinimapIcon()
                         if data.showInTooltip and data.lastScan then
                             local sc = data.lastScan
                             local charName = charKey:match("^(.+) %- ") or charKey
-                            local MAX_ITEMS_PER_DIFFICULTY = 2
+                            local MAX_HUNTS_PER_DIFFICULTY = 4
+                            local GEAR_CAP = 2  -- gear only drops from the first 2
                             -- Fixed-width columns: each slot is the same width
                             -- whether shown, hidden, or blank padding
                             local COL_PAD = "        "  -- padding for hidden columns
                             local function fmtCol(label, count)
-                                local v = math.min(count, MAX_ITEMS_PER_DIFFICULTY)
-                                local cr, cg, cb = 1, 0.35, 0.35
-                                if v >= 2 then cr, cg, cb = 0.2, 1, 0.2
-                                elseif v == 1 then cr, cg, cb = 1, 0.65, 0 end
+                                local v = math.min(count, MAX_HUNTS_PER_DIFFICULTY)
+                                local cr, cg, cb = 1, 0.35, 0.35        -- 0: red
+                                if v > GEAR_CAP then cr, cg, cb = 0.4, 0.8, 1       -- 3-4: cyan (past gear cap)
+                                elseif v == GEAR_CAP then cr, cg, cb = 0.2, 1, 0.2  -- 2: green (gear cap reached)
+                                elseif v == 1 then cr, cg, cb = 1, 0.65, 0 end      -- 1: orange
                                 return string.format("|cff%02x%02x%02x%s:%d|r", cr * 255, cg * 255, cb * 255, label, v)
                             end
                             local slots = {}

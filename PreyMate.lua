@@ -477,8 +477,25 @@ frame:SetScript("OnEvent", function(self, event, arg1)
                 PreyMateDB.trackerOrder[#PreyMateDB.trackerOrder + 1] = trackerKey
             end
         end
-        -- Cache this character's scan for the tooltip
-        PreyMateDB.trackerCharacters[trackerKey].lastScan = PM:ScanCharacterHunts()
+        -- Cache this character's scan for the tooltip (deferred — quest line data
+        -- is often not available yet at PLAYER_ENTERING_WORLD time)
+        local TRACKER_SCAN_DELAY = 2     -- seconds before first attempt
+        local MAX_SCAN_RETRIES   = 4     -- retry up to this many times
+        local function initialTrackerScan(attempt)
+            local tk = PM:GetCharKey()
+            if not PreyMateDB.trackerCharacters or not PreyMateDB.trackerCharacters[tk] then return end
+            local result = PM:ScanCharacterHunts()
+            if result then
+                PreyMateDB.trackerCharacters[tk].lastScan = result
+                log("Initial tracker scan complete:", result.total, "hunts")
+            elseif attempt < MAX_SCAN_RETRIES then
+                log("Tracker scan deferred — quest line data not loaded (retry", attempt + 1 .. ")")
+                C_Timer.After(attempt + 1, function() initialTrackerScan(attempt + 1) end)
+            else
+                log("Tracker scan gave up after", MAX_SCAN_RETRIES, "retries")
+            end
+        end
+        C_Timer.After(TRACKER_SCAN_DELAY, function() initialTrackerScan(0) end)
 
         -- Quest data is now available. Restore tracking if we're mid-hunt.
         local resumeID = C_QuestLog.GetActivePreyQuest()
@@ -547,8 +564,11 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             C_Timer.After(TURN_IN_SCAN_DELAY, function()
                 local tk = PM:GetCharKey()
                 if PreyMateDB.trackerCharacters and PreyMateDB.trackerCharacters[tk] then
-                    PreyMateDB.trackerCharacters[tk].lastScan = PM:ScanCharacterHunts()
-                    log("Weekly tracker scan refreshed after hunt turn-in")
+                    local result = PM:ScanCharacterHunts()
+                    if result then
+                        PreyMateDB.trackerCharacters[tk].lastScan = result
+                        log("Weekly tracker scan refreshed after hunt turn-in")
+                    end
                 end
             end)
         end
@@ -567,7 +587,10 @@ frame:SetScript("OnEvent", function(self, event, arg1)
                 -- Refresh cached scan for weekly tracker tooltip
                 local tk = PM:GetCharKey()
                 if PreyMateDB.trackerCharacters and PreyMateDB.trackerCharacters[tk] then
-                    PreyMateDB.trackerCharacters[tk].lastScan = PM:ScanCharacterHunts()
+                    local result = PM:ScanCharacterHunts()
+                    if result then
+                        PreyMateDB.trackerCharacters[tk].lastScan = result
+                    end
                 end
             end
             log("Hunt quest complete")
@@ -691,6 +714,7 @@ end
 
 function PM:ScanCharacterHunts()
     local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
+    if #quests == 0 then return nil end  -- quest line data not loaded yet
     local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
     for _, qid in ipairs(quests) do
         if C_QuestLog.IsQuestFlaggedCompleted(qid) then

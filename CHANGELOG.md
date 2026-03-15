@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-03-15
+### Fixed
+- Tracker scan no longer overwrites valid cached hunt counts with zeroes when quest line data isn't loaded yet (e.g. on login/reload)
+- Hunt turn-in now correctly updates the tracker — auto-complete was clearing the active quest ID before QUEST_REMOVED could fire the post-turn-in scan
+- Added retry scan after turn-in for robustness
+
+### Changed
+- Reward tracker cap raised from 2 to 4 per difficulty with updated color scale: red (0), orange (1), green (2 — gear cap), cyan (3–4 — past gear cap)
+- Extracted rewards tracker into its own module (PreyMate_Tracker.lua) for cleaner separation of concerns
+
 ## [1.1.1] - 2026-03-13
 ### Fixed
 - Auto-collect now matches rewards by currency ID instead of assuming a fixed slot order — fixes wrong reward being selected when the game presents choices in a different position

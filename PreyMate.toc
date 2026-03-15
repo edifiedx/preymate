@@ -13,4 +13,5 @@ Libs\LibDBIcon-1.0\lib.xml
 PreyMate.lua
 PreyMate_Accept.lua
 PreyMate_Minimap.lua
+PreyMate_Tracker.lua
 PreyMate_Options.lua

@@ -32,6 +32,8 @@ Never create a second global. Attach shared state (functions, flags, references)
 |---|---|
 | `PreyMate.lua` | Core — shared table, profile system, quest tracking, events, slash commands |
 | `PreyMate_Accept.lua` | Auto-accept & auto-pay — gossip event handling for Astalor Bloodsworn |
+| `PreyMate_Minimap.lua` | Minimap button (LibDBIcon), tooltip rendering, context menu |
+| `PreyMate_Tracker.lua` | Rewards tracker — warband/character scan, tracker tooltip section, tracker settings sub-page |
 | `PreyMate_Options.lua` | Settings panel — UI construction, registered via `Settings.RegisterCanvasLayoutCategory` |
 | `PreyMate.toc` | Addon manifest — **version is auto-updated by CI, do not manually edit the Version field** |
 | `.pkgmeta` | CurseForge packaging config |
@@ -42,7 +44,9 @@ Never create a second global. Attach shared state (functions, flags, references)
 
 1. `PreyMate.lua` — must be first (creates the global table and profile system)
 2. `PreyMate_Accept.lua` — depends on `PreyMate` table existing
-3. `PreyMate_Options.lua` — depends on `PreyMate` table and calls `PM:InitSettings()`
+3. `PreyMate_Minimap.lua` — minimap button, tooltip, context menu
+4. `PreyMate_Tracker.lua` — rewards tracker module (scan, tooltip section, settings sub-page)
+5. `PreyMate_Options.lua` — depends on `PreyMate` table and calls `PM:InitSettings()`
 
 ## Coding Conventions
 

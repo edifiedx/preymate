@@ -458,44 +458,8 @@ frame:SetScript("OnEvent", function(self, event, arg1)
         PM.session.sessionStartAnguish = PM:GetAnguish()
         PM.session.sessionStartTime = GetTime()
 
-        -- Auto-register this character for the weekly tracker
-        local trackerKey = PM:GetCharKey()
-        if not PreyMateDB.trackerCharacters[trackerKey] then
-            local profile = PM:GetProfile()
-            PreyMateDB.trackerCharacters[trackerKey] = {
-                showInTooltip = true,
-                showNormal    = profile.trackerShowNormal,
-                showHard      = profile.trackerShowHard,
-                showNightmare = profile.trackerShowNightmare,
-            }
-            -- Append to tracker order
-            local found = false
-            for _, k in ipairs(PreyMateDB.trackerOrder) do
-                if k == trackerKey then found = true; break end
-            end
-            if not found then
-                PreyMateDB.trackerOrder[#PreyMateDB.trackerOrder + 1] = trackerKey
-            end
-        end
-        -- Cache this character's scan for the tooltip (deferred — quest line data
-        -- is often not available yet at PLAYER_ENTERING_WORLD time)
-        local TRACKER_SCAN_DELAY = 2     -- seconds before first attempt
-        local MAX_SCAN_RETRIES   = 4     -- retry up to this many times
-        local function initialTrackerScan(attempt)
-            local tk = PM:GetCharKey()
-            if not PreyMateDB.trackerCharacters or not PreyMateDB.trackerCharacters[tk] then return end
-            local result = PM:ScanCharacterHunts()
-            if result then
-                PreyMateDB.trackerCharacters[tk].lastScan = result
-                log("Initial tracker scan complete:", result.total, "hunts")
-            elseif attempt < MAX_SCAN_RETRIES then
-                log("Tracker scan deferred — quest line data not loaded (retry", attempt + 1 .. ")")
-                C_Timer.After(attempt + 1, function() initialTrackerScan(attempt + 1) end)
-            else
-                log("Tracker scan gave up after", MAX_SCAN_RETRIES, "retries")
-            end
-        end
-        C_Timer.After(TRACKER_SCAN_DELAY, function() initialTrackerScan(0) end)
+        -- Register this character for the weekly tracker (deferred scan)
+        PM:RegisterTrackerCharacter()
 
         -- Quest data is now available. Restore tracking if we're mid-hunt.
         local resumeID = C_QuestLog.GetActivePreyQuest()
@@ -561,16 +525,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             PM.activeHuntComplete  = false
             -- Re-scan after turn-in so weekly flags are current
             local TURN_IN_SCAN_DELAY = 1
-            C_Timer.After(TURN_IN_SCAN_DELAY, function()
-                local tk = PM:GetCharKey()
-                if PreyMateDB.trackerCharacters and PreyMateDB.trackerCharacters[tk] then
-                    local result = PM:ScanCharacterHunts()
-                    if result then
-                        PreyMateDB.trackerCharacters[tk].lastScan = result
-                        log("Weekly tracker scan refreshed after hunt turn-in")
-                    end
-                end
-            end)
+            local TURN_IN_RETRY_DELAY = 3
+            C_Timer.After(TURN_IN_SCAN_DELAY, function() PM:RefreshTrackerScan() end)
+            C_Timer.After(TURN_IN_RETRY_DELAY, function() PM:RefreshTrackerScan() end)
         end
 
     elseif event == "QUEST_LOG_UPDATE" then
@@ -584,35 +541,26 @@ frame:SetScript("OnEvent", function(self, event, arg1)
             if not PM.activeHuntComplete then
                 PM.activeHuntComplete = true
                 PM.session.huntsCompleted = PM.session.huntsCompleted + 1
-                -- Refresh cached scan for weekly tracker tooltip
-                local tk = PM:GetCharKey()
-                if PreyMateDB.trackerCharacters and PreyMateDB.trackerCharacters[tk] then
-                    local result = PM:ScanCharacterHunts()
-                    if result then
-                        PreyMateDB.trackerCharacters[tk].lastScan = result
+                log("Hunt quest complete")
+                if profile.autoComplete then
+                    log("Auto-completing quest")
+                    ShowQuestComplete(qID)
+                    if profile.autoCollect then
+                        C_Timer.After(AUTOCOLLECT_DELAY, function()
+                            local idx = FindRewardChoiceIndex(profile.autoCollectReward)
+                            log("Auto-collecting reward, wanted=", profile.autoCollectReward, "slot=", tostring(idx))
+                            if idx then
+                                PM.session.rewardCounts[profile.autoCollectReward] = (PM.session.rewardCounts[profile.autoCollectReward] or 0) + 1
+                                GetQuestReward(idx)
+                            end
+                            ScheduleHuntDeltaCapture()  -- runs 2s later, after reward credits
+                        end)
+                    else
+                        C_Timer.After(AUTOCOLLECT_DELAY, function()
+                            LogRewardChoices(GetNumQuestChoices())
+                        end)
+                        ScheduleHuntDeltaCapture()  -- player picks reward manually; snapshot anyway
                     end
-                end
-            end
-            log("Hunt quest complete")
-            if profile.autoComplete then
-                log("Auto-completing quest")
-                PM.activeHuntQuestID = nil
-                ShowQuestComplete(qID)
-                if profile.autoCollect then
-                    C_Timer.After(AUTOCOLLECT_DELAY, function()
-                        local idx = FindRewardChoiceIndex(profile.autoCollectReward)
-                        log("Auto-collecting reward, wanted=", profile.autoCollectReward, "slot=", tostring(idx))
-                        if idx then
-                            PM.session.rewardCounts[profile.autoCollectReward] = (PM.session.rewardCounts[profile.autoCollectReward] or 0) + 1
-                            GetQuestReward(idx)
-                        end
-                        ScheduleHuntDeltaCapture()  -- runs 2s later, after reward credits
-                    end)
-                else
-                    C_Timer.After(AUTOCOLLECT_DELAY, function()
-                        LogRewardChoices(GetNumQuestChoices())
-                    end)
-                    ScheduleHuntDeltaCapture()  -- player picks reward manually; snapshot anyway
                 end
             end
         elseif C_QuestLog.GetNumQuestObjectives(qID) == 2 then
@@ -662,105 +610,7 @@ function PM:PrintSessionStats()
     end
 end
 
-local PREY_QUEST_LINE_ID = 5945
 
-local function ParseDifficulty(title)
-    return title:match("%((%a+)%)$") or "Unknown"
-end
-
--- Warband total hunts this week (table + random) — for JP bonus tracking
-function PM:ScanWarbandHunts()
-    local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
-    local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
-    for _, qid in ipairs(quests) do
-        if C_QuestLog.IsQuestFlaggedCompletedOnAccount(qid) then
-            local title = C_QuestLog.GetTitleForQuestID(qid) or ""
-            local diff = ParseDifficulty(title)
-            counts[diff] = (counts[diff] or 0) + 1
-            counts.total = counts.total + 1
-        end
-    end
-    return counts
-end
-
--- Per-character table hunts this week — for gear tracking
----------------------------------------------------------------------
--- Tracker Order — returns ordered list of character keys, synced
--- against trackerCharacters (adds missing, removes stale)
----------------------------------------------------------------------
-function PM:GetTrackerOrder()
-    if not PreyMateDB.trackerOrder then PreyMateDB.trackerOrder = {} end
-    local chars = PreyMateDB.trackerCharacters or {}
-    -- Add any characters not yet in the order list
-    local inOrder = {}
-    for _, key in ipairs(PreyMateDB.trackerOrder) do
-        inOrder[key] = true
-    end
-    for key in pairs(chars) do
-        if not inOrder[key] then
-            PreyMateDB.trackerOrder[#PreyMateDB.trackerOrder + 1] = key
-        end
-    end
-    -- Filter out characters no longer in trackerCharacters
-    local cleaned = {}
-    for _, key in ipairs(PreyMateDB.trackerOrder) do
-        if chars[key] then
-            cleaned[#cleaned + 1] = key
-        end
-    end
-    PreyMateDB.trackerOrder = cleaned
-    return cleaned
-end
-
-function PM:ScanCharacterHunts()
-    local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
-    if #quests == 0 then return nil end  -- quest line data not loaded yet
-    local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
-    for _, qid in ipairs(quests) do
-        if C_QuestLog.IsQuestFlaggedCompleted(qid) then
-            local title = C_QuestLog.GetTitleForQuestID(qid) or ""
-            local diff = ParseDifficulty(title)
-            counts[diff] = (counts[diff] or 0) + 1
-            counts.total = counts.total + 1
-        end
-    end
-    return counts
-end
-
-function PM:DebugWeeklyHunts()
-    local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
-    local charName = UnitName("player")
-    local warbandList, charList = {}, {}
-
-    for _, qid in ipairs(quests) do
-        local title = C_QuestLog.GetTitleForQuestID(qid) or "?"
-        local acct = C_QuestLog.IsQuestFlaggedCompletedOnAccount(qid)
-        local char = C_QuestLog.IsQuestFlaggedCompleted(qid)
-        if acct then
-            warbandList[#warbandList + 1] = { qid = qid, title = title, charToo = char }
-        end
-        if char and not acct then
-            charList[#charList + 1] = { qid = qid, title = title }
-        end
-    end
-
-    print(PM.PREFIX, "|cffffff00Weekly Hunt Debug|r — " .. charName)
-    print(PM.PREFIX, "Total quests in line:", #quests)
-    print(PM.PREFIX, "")
-    print(PM.PREFIX, "|cff00ff00Warband-flagged:|r", #warbandList)
-    for _, e in ipairs(warbandList) do
-        local tag = e.charToo and " |cff888888(this char too)|r" or " |cffff8800(other char)|r"
-        print(PM.PREFIX, "  " .. e.qid .. " " .. e.title .. tag)
-    end
-
-    if #charList > 0 then
-        print(PM.PREFIX, "")
-        print(PM.PREFIX, "|cffff0000Char-only (NOT warband-flagged):|r", #charList)
-        for _, e in ipairs(charList) do
-            print(PM.PREFIX, "  " .. e.qid .. " " .. e.title)
-        end
-    end
-end
 
 SLASH_PREYMATE1 = "/pm"
 SlashCmdList["PREYMATE"] = function(msg)

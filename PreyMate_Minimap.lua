@@ -224,57 +224,7 @@ local function InitMinimapIcon()
             end
 
             -- Weekly hunt tracker (above Anguish stats)
-            if profile.showWeeklyTracker then
-                tooltip:AddLine(" ")
-                local warband = PM:ScanWarbandHunts()
-                local BONUS_THRESHOLD = 4
-                local bonusDone = math.min(warband.total, BONUS_THRESHOLD)
-                local bonusR, bonusG, bonusB = 1, 0.85, 0.1
-                if bonusDone >= BONUS_THRESHOLD then bonusR, bonusG, bonusB = 0.2, 1, 0.2 end
-                tooltip:AddDoubleLine("Journey Bonus:", bonusDone .. "/" .. BONUS_THRESHOLD, 0.7, 0.7, 0.7, bonusR, bonusG, bonusB)
-
-                -- Per-character item rewards by difficulty
-                if PreyMateDB.trackerCharacters then
-                    local orderedKeys = PM:GetTrackerOrder()
-                    local hasAnyChar = false
-                    for _, charKey in ipairs(orderedKeys) do
-                        local data = PreyMateDB.trackerCharacters[charKey]
-                        if data.showInTooltip and data.lastScan then hasAnyChar = true; break end
-                    end
-                    if hasAnyChar then
-                        tooltip:AddLine("Item Rewards:", 0.7, 0.7, 0.7)
-                    end
-                    for _, charKey in ipairs(orderedKeys) do
-                        local data = PreyMateDB.trackerCharacters[charKey]
-                        if data.showInTooltip and data.lastScan then
-                            local sc = data.lastScan
-                            local charName = charKey:match("^(.+) %- ") or charKey
-                            local MAX_HUNTS_PER_DIFFICULTY = 4
-                            local GEAR_CAP = 2  -- gear only drops from the first 2
-                            -- Fixed-width columns: each slot is the same width
-                            -- whether shown, hidden, or blank padding
-                            local COL_PAD = "        "  -- padding for hidden columns
-                            local function fmtCol(label, count)
-                                local v = math.min(count, MAX_HUNTS_PER_DIFFICULTY)
-                                local cr, cg, cb = 1, 0.35, 0.35        -- 0: red
-                                if v > GEAR_CAP then cr, cg, cb = 0.4, 0.8, 1       -- 3-4: cyan (past gear cap)
-                                elseif v == GEAR_CAP then cr, cg, cb = 0.2, 1, 0.2  -- 2: green (gear cap reached)
-                                elseif v == 1 then cr, cg, cb = 1, 0.65, 0 end      -- 1: orange
-                                return string.format("|cff%02x%02x%02x%s:%d|r", cr * 255, cg * 255, cb * 255, label, v)
-                            end
-                            local slots = {}
-                            slots[#slots + 1] = (data.showNormal ~= false) and fmtCol("N", sc.Normal or 0) or COL_PAD
-                            slots[#slots + 1] = (data.showHard ~= false) and fmtCol("H", sc.Hard or 0) or COL_PAD
-                            slots[#slots + 1] = (data.showNightmare ~= false) and fmtCol("NM", sc.Nightmare or 0) or COL_PAD
-                            -- Only show the line if at least one column is visible
-                            local hasAny = (data.showNormal ~= false) or (data.showHard ~= false) or (data.showNightmare ~= false)
-                            if hasAny then
-                                tooltip:AddDoubleLine("  " .. charName, table.concat(slots, "  "), 0.5, 0.5, 0.5, 1, 1, 1)
-                            end
-                        end
-                    end
-                end
-            end
+            PM:AddTrackerTooltip(tooltip, profile)
 
             -- Anguish stats
             local currentAnguish = PM:GetAnguish()

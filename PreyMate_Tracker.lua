@@ -116,9 +116,43 @@ function PM:GetTrackerOrder()
 end
 
 ---------------------------------------------------------------------
+-- Weekly reset detection
+---------------------------------------------------------------------
+local function CheckWeeklyReset()
+    local now = GetServerTime()
+    local secsUntil = C_DateAndTime.GetSecondsUntilWeeklyReset()
+    if not secsUntil or secsUntil == 0 then
+        log("GetSecondsUntilWeeklyReset not available yet — skipping reset check")
+        return
+    end
+    local nextReset = now + secsUntil
+
+    local shouldWipe = false
+    if not PreyMateDB.trackerResetTime then
+        -- No stamp yet (upgrade from older version) — assume stale
+        shouldWipe = true
+        log("No tracker reset stamp found — clearing stale scan data")
+    elseif now >= PreyMateDB.trackerResetTime then
+        -- A weekly reset has occurred
+        shouldWipe = true
+        log("Weekly reset detected — clearing all tracker scan data")
+    end
+
+    if shouldWipe and PreyMateDB.trackerCharacters then
+        for _, data in pairs(PreyMateDB.trackerCharacters) do
+            data.lastScan = nil
+        end
+    end
+
+    PreyMateDB.trackerResetTime = nextReset
+end
+
+---------------------------------------------------------------------
 -- Character registration (called from PLAYER_ENTERING_WORLD)
 ---------------------------------------------------------------------
 function PM:RegisterTrackerCharacter()
+    CheckWeeklyReset()
+
     local trackerKey = self:GetCharKey()
     if not PreyMateDB.trackerCharacters[trackerKey] then
         local profile = self:GetProfile()
@@ -186,15 +220,16 @@ function PM:AddTrackerTooltip(tooltip, profile)
         local hasAnyChar = false
         for _, charKey in ipairs(orderedKeys) do
             local data = PreyMateDB.trackerCharacters[charKey]
-            if data.showInTooltip and data.lastScan then hasAnyChar = true; break end
+            if data.showInTooltip then hasAnyChar = true; break end
         end
         if hasAnyChar then
             tooltip:AddLine("Item Rewards:", 0.7, 0.7, 0.7)
         end
+        local EMPTY_SCAN = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
         for _, charKey in ipairs(orderedKeys) do
             local data = PreyMateDB.trackerCharacters[charKey]
-            if data.showInTooltip and data.lastScan then
-                local sc = data.lastScan
+            if data.showInTooltip then
+                local sc = data.lastScan or EMPTY_SCAN
                 local charName = charKey:match("^(.+) %- ") or charKey
                 local COL_PAD = "        "
                 local function fmtCol(label, count)

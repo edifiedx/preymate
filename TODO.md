@@ -129,6 +129,13 @@ A **separate settings sub-category** (registered via `Settings.RegisterCanvasLay
 - If no clean API exists, fallback is opening the World Map to the Prey zone
 - Once discovered: add `PM.LCLICK_JOURNAL = 4`, wire into `OnClick`, add to left-click dropdown and tooltip hint
 
+### Nightmare Unlock Detection & Default Prompt
+- Track the quest/achievement that unlocks Nightmare difficulty for a character
+- When a character unlocks Nightmare for the first time, and they have a default hunt level set (Auto Accept enabled), prompt them asking if they want to change their default hunt level to Nightmare
+- Need to identify: what quest ID or achievement flag marks Nightmare as unlocked?
+- Prompt should be a simple dialog: "You've unlocked Nightmare hunts! Would you like to set Nightmare as your default hunt level?"
+- Only prompt once per character (track in `PreyMateDB` or a per-character flag)
+
 ### CurseForge Changelog Trimming
 - CurseForge displays the full `CHANGELOG.md` on every release — gets long over time
 - Add a `CHANGELOG_CURSEFORGE.md` with only the last few versions + a link to full GitHub changelog

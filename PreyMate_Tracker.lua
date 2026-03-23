@@ -28,6 +28,9 @@ end
 
 function PM:ScanWarbandHunts()
     local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
+    if #quests == 0 then return nil end
+    local firstTitle = C_QuestLog.GetTitleForQuestID(quests[1])
+    if not firstTitle or firstTitle == "" then return nil end
     local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
     for _, qid in ipairs(quests) do
         if C_QuestLog.IsQuestFlaggedCompletedOnAccount(qid) then
@@ -43,6 +46,10 @@ end
 function PM:ScanCharacterHunts()
     local quests = C_QuestLine.GetQuestLineQuests(PREY_QUEST_LINE_ID)
     if #quests == 0 then return nil end  -- quest line data not loaded yet
+    -- Check if quest metadata is actually loaded — if titles are missing,
+    -- completion flags are also unreliable and we'd get false zeros
+    local firstTitle = C_QuestLog.GetTitleForQuestID(quests[1])
+    if not firstTitle or firstTitle == "" then return nil end
     local counts = { Normal = 0, Hard = 0, Nightmare = 0, total = 0 }
     for _, qid in ipairs(quests) do
         if C_QuestLog.IsQuestFlaggedCompleted(qid) then
@@ -174,8 +181,21 @@ function PM:RegisterTrackerCharacter()
     local function initialTrackerScan(attempt)
         local tk = self:GetCharKey()
         if not PreyMateDB.trackerCharacters or not PreyMateDB.trackerCharacters[tk] then return end
+        local cached = PreyMateDB.trackerCharacters[tk].lastScan
         local result = self:ScanCharacterHunts()
         if result then
+            -- Guard: if cached data has hunts but fresh scan says zero,
+            -- completion flags likely haven't loaded yet — retry
+            if result.total == 0 and cached and cached.total > 0 then
+                if attempt < MAX_SCAN_RETRIES then
+                    log("Tracker scan returned zeros but cached data exists — retrying (", attempt + 1, ")")
+                    C_Timer.After(attempt + 1, function() initialTrackerScan(attempt + 1) end)
+                    return
+                end
+                -- Exhausted retries — keep cached data rather than overwriting with zeros
+                log("Tracker scan still zeros after retries — keeping cached data")
+                return
+            end
             PreyMateDB.trackerCharacters[tk].lastScan = result
             log("Initial tracker scan complete:", result.total, "hunts")
         elseif attempt < MAX_SCAN_RETRIES then
@@ -210,7 +230,8 @@ function PM:AddTrackerTooltip(tooltip, profile)
 
     tooltip:AddLine(" ")
     local warband = self:ScanWarbandHunts()
-    local bonusDone = math.min(warband.total, BONUS_THRESHOLD)
+    local warbandTotal = warband and warband.total or 0
+    local bonusDone = math.min(warbandTotal, BONUS_THRESHOLD)
     local bonusR, bonusG, bonusB = 1, 0.85, 0.1
     if bonusDone >= BONUS_THRESHOLD then bonusR, bonusG, bonusB = 0.2, 1, 0.2 end
     tooltip:AddDoubleLine("Journey Bonus:", bonusDone .. "/" .. BONUS_THRESHOLD, 0.7, 0.7, 0.7, bonusR, bonusG, bonusB)

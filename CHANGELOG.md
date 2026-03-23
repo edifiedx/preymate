@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-03-23
+### Fixed
+- Tracker scan no longer overwrites cached hunt counts with zeros on fresh login when completion flags haven't loaded yet — retries until flags are available, falls back to cached data if retries are exhausted
+- Warband hunt scan (Journey Bonus) now also guards against unloaded quest data instead of returning zeros
+
 ## [1.1.3] - 2026-03-17
 ### Fixed
 - Weekly reset detection no longer crashes when `GetSecondsUntilWeeklyReset()` isn't available yet at login — this was breaking auto-track, auto-complete, and hunt resume

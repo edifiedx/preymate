@@ -1,10 +1,7 @@
-## [1.1.3] - 2026-03-17
+## [1.1.4] - 2026-03-23
 
 [Full Changelog](https://github.com/edifiedx/preymate/blob/main/CHANGELOG.md)
 
 ### Fixed
-- Weekly reset detection no longer crashes when `GetSecondsUntilWeeklyReset()` isn't available yet at login — this was breaking auto-track, auto-complete, and hunt resume
-- Characters that haven't logged in since reset now show zeroed counts in the tooltip instead of disappearing
-
-### Added
-- Automatic weekly reset detection: first character to log in after reset clears all stale tracker data across the warband
+- Tracker scan no longer overwrites cached hunt counts with zeros on fresh login when completion flags haven't loaded yet — retries until flags are available, falls back to cached data if retries are exhausted
+- Warband hunt scan (Journey Bonus) now also guards against unloaded quest data instead of returning zeros

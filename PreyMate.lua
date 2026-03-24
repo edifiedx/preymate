@@ -621,9 +621,39 @@ SlashCmdList["PREYMATE"] = function(msg)
         PM:PrintSessionStats()
     elseif msg == "hunts" then
         PM:DebugWeeklyHunts()
+    elseif msg == "journey" then
+        PM:DebugJourneyRank()
+    elseif msg:match("^fakerank") then
+        local rank, earned = msg:match("^fakerank%s+(%d+)%s+(%d+)")
+        if rank then
+            PM.debugJourneyOverride = {
+                rank = tonumber(rank),
+                earned = tonumber(earned),
+                threshold = 4000,
+            }
+            print(PM.PREFIX, string.format("Faking Journey Rank %s (%s/4000) — hover minimap to see tooltip", rank, earned))
+        else
+            PM.debugJourneyOverride = nil
+            print(PM.PREFIX, "Journey rank override cleared")
+        end
     elseif PM.settingsCategory then
         Settings.OpenToCategory(PM.settingsCategory.ID)
     else
         print(PM.PREFIX, "Settings not initialized yet")
+    end
+end
+
+---------------------------------------------------------------------
+-- Debug: Journey rank info
+---------------------------------------------------------------------
+function PM:DebugJourneyRank()
+    local journey = self:GetJourneyInfo()
+    if journey then
+        print(self.PREFIX, string.format(
+            "|cffffff00Journey|r — Rank %d, Progress %d/%d",
+            journey.rank, journey.earned, journey.threshold
+        ))
+    else
+        print(self.PREFIX, "Journey rank data not available")
     end
 end

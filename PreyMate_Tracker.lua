@@ -4,11 +4,15 @@
 local PM = PreyMate
 
 local PREY_QUEST_LINE_ID = 5945
+local JOURNEY_FACTION_ID = 2764  -- "Prey: Season 1" major faction
 
 local TRACKER_SCAN_DELAY = 2     -- seconds before first attempt
 local MAX_SCAN_RETRIES   = 4     -- retry up to this many times
 
-local BONUS_THRESHOLD      = 4   -- warband hunts needed for Journey Bonus
+local BONUS_THRESHOLD      = 4   -- warband hunts needed for full Journey bonus (rank 4+)
+local BONUS_RANK_THRESHOLD = 4   -- ranks below this get full progress on every hunt
+local JOURNEY_REP_PER_RANK = 4000 -- reputation required per Journey rank
+local JOURNEY_REP_PER_HUNT = 1000 -- Journey progress awarded per hunt (ranks 1-3)
 local MAX_HUNTS_PER_DIFFICULTY = 4
 local GEAR_CAP             = 2   -- gear only drops from the first 2
 local TRACKER_ROW_HEIGHT   = 28
@@ -223,18 +227,64 @@ function PM:RefreshTrackerScan()
 end
 
 ---------------------------------------------------------------------
+-- Journey rank helper
+---------------------------------------------------------------------
+function PM:GetJourneyInfo()
+    -- Debug override: /pm fakerank <rank> <earned>
+    if PM.debugJourneyOverride then
+        return PM.debugJourneyOverride
+    end
+    if not C_MajorFactions or not C_MajorFactions.GetMajorFactionRenownInfo then
+        return nil
+    end
+    local info = C_MajorFactions.GetMajorFactionRenownInfo(JOURNEY_FACTION_ID)
+    if not info then return nil end
+    return {
+        rank      = info.renownLevel or 0,
+        earned    = info.renownReputationEarned or 0,
+        threshold = info.renownLevelThreshold or 0,
+    }
+end
+
+---------------------------------------------------------------------
 -- Tooltip integration (called from minimap OnTooltipShow)
 ---------------------------------------------------------------------
 function PM:AddTrackerTooltip(tooltip, profile)
     if not profile.showWeeklyTracker then return end
 
     tooltip:AddLine(" ")
-    local warband = self:ScanWarbandHunts()
-    local warbandTotal = warband and warband.total or 0
-    local bonusDone = math.min(warbandTotal, BONUS_THRESHOLD)
-    local bonusR, bonusG, bonusB = 1, 0.85, 0.1
-    if bonusDone >= BONUS_THRESHOLD then bonusR, bonusG, bonusB = 0.2, 1, 0.2 end
-    tooltip:AddDoubleLine("Journey Bonus:", bonusDone .. "/" .. BONUS_THRESHOLD, 0.7, 0.7, 0.7, bonusR, bonusG, bonusB)
+
+    -- Journey rank + progress
+    local journey = self:GetJourneyInfo()
+    if journey then
+        local pct = journey.threshold > 0 and math.floor(journey.earned / journey.threshold * 100) or 0
+        local progressText = string.format("%d  (%d/%d)", journey.rank, journey.earned, journey.threshold)
+        local pR, pG, pB = 1, 0.85, 0.1
+        if pct >= 100 then pR, pG, pB = 0.2, 1, 0.2
+        elseif pct >= 50 then pR, pG, pB = 1, 0.85, 0.1
+        else pR, pG, pB = 1, 1, 1 end
+        tooltip:AddDoubleLine("Journey Rank:", progressText, 0.7, 0.7, 0.7, pR, pG, pB)
+    end
+
+    -- Rank-aware weekly info
+    local journeyRank = journey and journey.rank or 0
+    if journeyRank > 0 and journeyRank < BONUS_RANK_THRESHOLD then
+        -- Ranks 1-3: all hunts give full progress — show hunts remaining to rank 4
+        local ranksLeft = BONUS_RANK_THRESHOLD - journeyRank
+        local repRemaining = (ranksLeft - 1) * JOURNEY_REP_PER_RANK + (journey.threshold - journey.earned)
+        local huntsLeft = math.ceil(repRemaining / JOURNEY_REP_PER_HUNT)
+        local hR, hG, hB = 1, 0.85, 0.1
+        if huntsLeft <= 4 then hR, hG, hB = 0.2, 1, 0.2 end
+        tooltip:AddDoubleLine("Rank 4 in:", huntsLeft .. (huntsLeft == 1 and " hunt" or " hunts"), 0.7, 0.7, 0.7, hR, hG, hB)
+    elseif journeyRank >= BONUS_RANK_THRESHOLD then
+        -- Rank 4+: first 4 hunts per week give 1000, rest give 50
+        local warband = self:ScanWarbandHunts()
+        local warbandTotal = warband and warband.total or 0
+        local bonusDone = math.min(warbandTotal, BONUS_THRESHOLD)
+        local bonusR, bonusG, bonusB = 1, 0.85, 0.1
+        if bonusDone >= BONUS_THRESHOLD then bonusR, bonusG, bonusB = 0.2, 1, 0.2 end
+        tooltip:AddDoubleLine("Journey Bonus:", bonusDone .. "/" .. BONUS_THRESHOLD, 0.7, 0.7, 0.7, bonusR, bonusG, bonusB)
+    end
 
     if PreyMateDB.trackerCharacters then
         local orderedKeys = self:GetTrackerOrder()

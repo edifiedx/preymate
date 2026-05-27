@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-05-27
+### Changed
+- Updated TOC Interface version to `120005` for WoW patch 12.0.5
+
 ## [1.1.5] - 2026-03-24
 ### Changed
 - Adapted to recent Prey hotfix: Journey Ranks 1-3 now award full 1000 progress on every hunt (not just the first 4), while Rank 4+ retains the first-4 weekly bonus
